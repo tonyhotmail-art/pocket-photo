@@ -1,0 +1,33 @@
+{
+    "indexes": [
+        {
+            "collectionGroup": "categories",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "visible",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "order",
+                    "order": "ASCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "portfolio_items",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "categoryName",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "createdAt",
+                    "order": "DESCENDING"
+                }
+            ]
+        }
+    ],
+    "fieldOverrides": []
+}

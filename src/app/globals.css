@@ -1,0 +1,124 @@
+@import "tailwindcss";
+
+:root {
+  --background: #F8F7F3;
+  /* 暖米色 */
+  --foreground: #1A1A1A;
+  /* 深碳灰 */
+  --font-serif: var(--font-noto-serif-tc), serif;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-serif: var(--font-serif);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-serif);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Lenis 平滑滾動基礎設定 */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+.lenis.lenis-scrolling iframe {
+  pointer-events: none;
+}
+
+/* 日系垂直文字與字體 */
+.vertical-serif {
+  writing-mode: vertical-rl;
+  font-family: var(--font-serif);
+  letter-spacing: 0.15em;
+  line-height: 1.5;
+}
+
+/* 圖片進入視窗的「流體感」動畫 - 優化電腦版感官 */
+.fluid-reveal {
+  opacity: 0;
+  transform: translateY(80px) scale(0.99);
+  /* 增加垂直位移，讓流動路徑更長 */
+  transition: opacity 1.5s cubic-bezier(0.1, 0.9, 0.2, 1),
+    transform 1.5s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+.fluid-reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  /* 移除 will-change 以避免與 hover 效果衝突 */
+}
+
+/* 微視差滾動效果（僅在大螢幕或滑動時增強） */
+.parallax-item {
+  transition: transform 0.1s linear;
+}
+
+/* 隱藏捲軸但保留滾動功能 */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+/* 自定義優雅捲軸 (常用於管理介面與燈箱文字區) */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 12px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  /* 更深、更顯眼的灰色 */
+  border-radius: 10px;
+  border: 3px solid #f1f1f1;
+  /* 增加邊距讓層次感更強 */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #1f2937;
+  /* 懸停時幾乎接近黑色 */
+}
+
+/* 圖片版權保護 */
+img {
+  -webkit-touch-callout: none;
+  /* iOS Safari */
+  -webkit-user-select: none;
+  /* Safari */
+  -khtml-user-select: none;
+  /* Konqueror HTML */
+  -moz-user-select: none;
+  /* Firefox */
+  -ms-user-select: none;
+  /* Internet Explorer/Edge */
+  user-select: none;
+  /* Non-prefixed version */
+}

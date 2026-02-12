@@ -1,0 +1,51 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 輔助函式:檢查是否為管理員
+    function isAdmin() {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    
+    // 輔助函式:檢查是否為已授權的管理員 Email
+    function isAuthorizedEmail() {
+      return request.auth != null && 
+             (request.auth.token.email == 'tony.hotmail@gmail.com' ||
+              request.auth.token.email == 'tony7777777@gmail.com');
+    }
+    
+    // Portfolio Items - 公開讀取,只有管理員可以寫入
+    match /portfolio_items/{itemId} {
+      // 所有人都可以讀取作品
+      allow read: if true;
+      
+      // 只有管理員可以建立、更新、刪除
+      allow create, update, delete: if isAdmin() || isAuthorizedEmail();
+    }
+    
+    // Categories - 公開讀取,只有管理員可以寫入
+    match /categories/{categoryId} {
+      // 所有人都可以讀取分類
+      allow read: if true;
+      
+      // 只有管理員可以建立、更新、刪除
+      allow create, update, delete: if isAdmin() || isAuthorizedEmail();
+    }
+    
+    // Admins - 只有管理員可以讀寫
+    match /admins/{adminId} {
+      // 只有已授權的管理員可以讀取管理員清單
+      allow read: if isAdmin() || isAuthorizedEmail();
+      
+      // 只有已授權的管理員可以新增/修改管理員
+      allow create, update, delete: if isAuthorizedEmail();
+    }
+    
+    // 預設規則:拒絕所有其他存取
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
