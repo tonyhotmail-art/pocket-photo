@@ -5,9 +5,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { portfolioItemSchema, type Category, type PortfolioItem } from "@/lib/schema";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, where, limit, getDocs } from "firebase/firestore";
 import { accessConfig } from "@/lib/config";
 import { compressImage } from "@/lib/image-compression";
+import { calculateImageHash } from "@/lib/hash";
 import { Loader2, UploadCloud, X, CheckCircle, Tag, Cloud } from "lucide-react";
 import { clsx } from "clsx";
 import GoogleDrivePicker from "@/components/GoogleDrivePicker";
@@ -108,18 +109,62 @@ export default function AutoForm() {
 
         try {
             const processed = await Promise.all(validFiles.map(async file => {
+                // 1. 計算內容指紋 (Hash)
+                const contentHash = await calculateImageHash(file);
+
+                // 2. 檢查是否重複
+                // 從 Firestore 查詢是否已存在相同的 hash
+                // 注意：這裡假設 contentHash 有建立索引
+                const q = query(
+                    collection(db, "portfolio_items"),
+                    where("contentHash", "==", contentHash),
+                    limit(1)
+                );
+                const snapshot = await getDocs(q);
+                const isDuplicate = !snapshot.empty;
+
+                // 3. 壓縮圖片
                 const compressed = await compressImage(file, { maxWidthOrHeight: 1280 });
+
                 return {
                     file: compressed,
-                    preview: URL.createObjectURL(compressed)
+                    originalFile: file, // 保留原始檔案以供上傳時計算 Hash (雖然壓縮後 Hash 會變，但我們用原始內容做指紋比較準)
+                    preview: URL.createObjectURL(compressed),
+                    contentHash,
+                    isDuplicate
                 };
             }));
 
-            setSelectedFiles(processed.map(p => p.file));
-            setPreviews(processed.map(p => p.preview));
-            setValue("imageUrl", "https://uploading.com/placeholder"); // Dummy to pass zod
+            // 過濾掉重複的照片
+            const uniqueFiles = processed.filter(p => !p.isDuplicate);
+            const duplicateCount = processed.length - uniqueFiles.length;
+
+            if (duplicateCount > 0) {
+                setFileError(`已自動略過 ${duplicateCount} 張重複的照片 (內容完全相同)`);
+            }
+
+            if (uniqueFiles.length === 0 && duplicateCount > 0) {
+                // 全部都是重複的
+                return;
+            }
+
+            setSelectedFiles(prev => [...prev, ...uniqueFiles.map(p => {
+                // 把 hash 偷偷塞進 file 物件 (雖然這不是標準做法，但在 JS 是可行的，或者我們應該改用物件陣列存 selectedFiles)
+                // 更好的做法是修改 selectedFiles 的型別，但為了最小改動，我們這裡擴充 File 物件
+                const f = p.file as any;
+                f.contentHash = p.contentHash;
+                return f;
+            })]);
+
+            setPreviews(prev => [...prev, ...uniqueFiles.map(p => p.preview)]);
+
+            // 如果成功加入檔案，清空 dummy url 確保 form valid
+            if (uniqueFiles.length > 0) {
+                setValue("imageUrl", "https://uploading.com/placeholder");
+            }
+
         } catch (error) {
-            console.error("Compression error:", error);
+            console.error("Processing error:", error);
             setFileError("圖片處理失敗");
         }
     };
@@ -132,16 +177,44 @@ export default function AutoForm() {
 
         try {
             const processed = await Promise.all(files.map(async file => {
+                // 計算 Hash
+                const contentHash = await calculateImageHash(file);
+
+                // 檢查重複
+                const q = query(
+                    collection(db, "portfolio_items"),
+                    where("contentHash", "==", contentHash),
+                    limit(1)
+                );
+                const snapshot = await getDocs(q);
+                const isDuplicate = !snapshot.empty;
+
                 const compressed = await compressImage(file, { maxWidthOrHeight: 1280 });
                 return {
                     file: compressed,
-                    preview: URL.createObjectURL(compressed)
+                    preview: URL.createObjectURL(compressed),
+                    contentHash,
+                    isDuplicate
                 };
             }));
 
-            setSelectedFiles(prev => [...prev, ...processed.map(p => p.file)]);
-            setPreviews(prev => [...prev, ...processed.map(p => p.preview)]);
-            setValue("imageUrl", "https://uploading.com/placeholder");
+            const uniqueFiles = processed.filter(p => !p.isDuplicate);
+            const duplicateCount = processed.length - uniqueFiles.length;
+
+            if (duplicateCount > 0) {
+                setFileError(`已自動略過 ${duplicateCount} 張重複的雲端照片`);
+            }
+
+            if (uniqueFiles.length > 0) {
+                setSelectedFiles(prev => [...prev, ...uniqueFiles.map(p => {
+                    const f = p.file as any;
+                    f.contentHash = p.contentHash;
+                    return f;
+                })]);
+                setPreviews(prev => [...prev, ...uniqueFiles.map(p => p.preview)]);
+                setValue("imageUrl", "https://uploading.com/placeholder");
+            }
+
         } catch (error) {
             console.error("處理 Google Drive 照片失敗:", error);
             setFileError("處理照片失敗,請重試");

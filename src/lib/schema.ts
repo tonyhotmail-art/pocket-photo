@@ -23,6 +23,7 @@ export const portfolioItemSchema = z.object({
     categoryOrder: z.number().optional(), // 分類排序權重
     tags: z.array(z.string()),
     createdAt: z.any().optional(), // Firestore Timestamp
+    contentHash: z.string().optional(), // 內容指紋 (SHA-256)
     tenantId: z.string().optional(),
 });
 

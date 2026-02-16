@@ -297,7 +297,8 @@ export default function Lightbox({
                         )}
                         <button
                             onClick={onClose}
-                            className="text-white/80 hover:text-white p-2.5 rounded-full transition-all bg-black/40 backdrop-blur-md hover:bg-black/60 shadow-sm border border-white/10"
+                            className="text-white/80 hover:text-white p-4 rounded-full transition-all bg-black/40 backdrop-blur-md hover:bg-black/60 shadow-sm border border-white/10 z-[100]"
+                            aria-label="關閉預覽"
                         >
                             <X size={24} strokeWidth={1.5} />
                         </button>
