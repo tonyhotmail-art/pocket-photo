@@ -31,6 +31,7 @@ function HomeContent() {
   const [hasMore, setHasMore] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isWorkManagerEnabled, setIsWorkManagerEnabled] = useState(false); // 延遲載入 WorkManager
   const observerTarget = useRef<HTMLDivElement>(null);
   const touchStartY = useRef<number>(0);
   const isAtTop = useRef<boolean>(true);
@@ -542,12 +543,52 @@ function HomeContent() {
 
                 <hr className="border-gray-100" />
                 <section>
-                  <WorkManager />
+                  <AdminManagement />
                 </section>
 
                 <hr className="border-gray-100" />
-                <section className="pb-8">
-                  <AdminManagement />
+                <section className="pb-12">
+                  <div className="flex flex-col items-center gap-6">
+                    {!isWorkManagerEnabled ? (
+                      <div className="w-full py-20 bg-gray-50/50 rounded-3xl border border-dashed border-gray-200 flex flex-col items-center justify-center group hover:bg-white hover:border-gray-300 transition-all duration-500">
+                        <div className="p-4 bg-white shadow-xl shadow-gray-200/50 rounded-2xl mb-6 group-hover:scale-110 transition-transform duration-500">
+                          <ImageIcon className="text-gray-400 group-hover:text-gray-900" size={32} />
+                        </div>
+                        <h4 className="text-lg font-bold text-gray-900 mb-2">批次管理作品</h4>
+                        <p className="text-sm text-gray-400 mb-8 max-w-xs text-center leading-relaxed">
+                          預設不載入大量照片以節省頻寬。點擊下方按鈕即可開始進行批次刪除與分類調整。
+                        </p>
+                        <button
+                          onClick={() => setIsWorkManagerEnabled(true)}
+                          className="px-10 py-4 bg-gray-900 text-white rounded-2xl font-bold hover:bg-black transition-all shadow-xl shadow-gray-200 active:scale-95 flex items-center gap-3"
+                        >
+                          <Settings size={20} className="animate-pulse" />
+                          進入批次管理面板
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-full animate-in fade-in slide-in-from-bottom-8 duration-700">
+                        <div className="flex items-center justify-between mb-8">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-gray-900 rounded-2xl flex items-center justify-center text-white">
+                              <ImageIcon size={24} />
+                            </div>
+                            <div>
+                              <h3 className="text-xl font-bold text-gray-900">照片批次管理</h3>
+                              <p className="text-sm text-gray-400">目前已加載作品清單</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setIsWorkManagerEnabled(false)}
+                            className="text-xs text-gray-400 hover:text-gray-900 transition-colors uppercase tracking-widest font-bold"
+                          >
+                            收合控制面板
+                          </button>
+                        </div>
+                        <WorkManager />
+                      </div>
+                    )}
+                  </div>
                 </section>
               </div>
             </div>

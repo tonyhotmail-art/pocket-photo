@@ -35,7 +35,7 @@ export default function MainGallery({ items, onItemClick, onCategoryClick, onTag
 
     return (
         <div className="px-6 md:px-12 py-12 lg:py-20" ref={containerRef}>
-            <div className="columns-1 sm:columns-2 md:columns-3 lg:columns-4 gap-6 space-y-6">
+            <div className="columns-1 sm:columns-2 md:columns-3 lg:columns-4 2xl:columns-5 gap-6 space-y-6">
                 {items.map((item, index) => {
                     const delay = (index % 3) * 0.1;
 
