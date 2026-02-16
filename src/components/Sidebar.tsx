@@ -40,29 +40,6 @@ export default function Sidebar({
                             全部作品 / ALL
                         </button>
 
-                        {/* 分享全站小圖示 */}
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                const url = `${window.location.origin}${window.location.pathname}`;
-                                if (navigator.share) {
-                                    navigator.share({
-                                        title: `Kelly Photo 作品集`,
-                                        url: url
-                                    }).catch(console.error);
-                                } else {
-                                    navigator.clipboard.writeText(url);
-                                    alert("網址已複製到剪貼簿");
-                                }
-                            }}
-                            className={clsx(
-                                "absolute -right-2 top-0 p-1.5 rounded-full bg-white shadow-sm border border-gray-100 text-gray-400 hover:text-[#1A1A1A] transition-all opacity-0 group-hover:opacity-100",
-                                selectedCategoryName === "all" && "opacity-100"
-                            )}
-                            title="分享整個作品集"
-                        >
-                            <Share2 size={12} />
-                        </button>
                     </div>
 
                     {categories.map((category) => (
