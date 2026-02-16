@@ -77,12 +77,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             for (const adminDoc of snap.docs) {
                 const data = adminDoc.data();
-                // 如果 UID 尚未紀錄，或名稱與 Google 不一致，則更新
-                if (data.uid !== currentUser.uid || data.accountName !== currentUser.displayName) {
+                // 如果 UID 尚未紀錄，或名稱/頭像與 Google 不一致，則更新
+                if (data.uid !== currentUser.uid ||
+                    data.accountName !== currentUser.displayName ||
+                    data.photoURL !== currentUser.photoURL) {
                     await updateDoc(doc(db, "admins", adminDoc.id), {
                         uid: currentUser.uid,
-                        // 優先使用 Google 提供的名稱，若無則保留原樣
+                        // 優先使用 Google 提供的資訊，若無則保留原樣
                         accountName: currentUser.displayName || data.accountName || "",
+                        photoURL: currentUser.photoURL || data.photoURL || "",
                         lastLogin: serverTimestamp()
                     });
                 }

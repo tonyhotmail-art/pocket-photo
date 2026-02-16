@@ -20,6 +20,7 @@ interface AdminRecord {
     type: "google" | "custom";
     email?: string;
     accountName?: string;
+    photoURL?: string;
     phone?: string;
     uid?: string;
     createdAt?: any;
@@ -62,6 +63,7 @@ export default function AdminManagement() {
             if (type === "google") {
                 if (!email) throw new Error("請輸入 Email");
                 data.email = email.toLowerCase().trim();
+                data.accountName = accountName.trim(); // 儲存手動輸入的名稱
             } else {
                 if (!accountName || !phone) throw new Error("請填寫完整帳號與手機");
 
@@ -150,16 +152,28 @@ export default function AdminManagement() {
                         </div>
 
                         {type === "google" ? (
-                            <div className="space-y-1">
-                                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Google 電子郵件 (Email)</label>
-                                <input
-                                    type="email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    placeholder="example@gmail.com"
-                                    className="w-full px-4 py-3 bg-white border border-gray-100 rounded-xl focus:ring-2 focus:ring-gray-800 outline-none transition text-sm"
-                                    required
-                                />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Google 電子郵件 (Email)</label>
+                                    <input
+                                        type="email"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        placeholder="example@gmail.com"
+                                        className="w-full px-4 py-3 bg-white border border-gray-100 rounded-xl focus:ring-2 focus:ring-gray-800 outline-none transition text-sm"
+                                        required
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">管理者名稱 (可選)</label>
+                                    <input
+                                        type="text"
+                                        value={accountName}
+                                        onChange={(e) => setAccountName(e.target.value)}
+                                        placeholder="例如：Kelly"
+                                        className="w-full px-4 py-3 bg-white border border-gray-100 rounded-xl focus:ring-2 focus:ring-gray-800 outline-none transition text-sm"
+                                    />
+                                </div>
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -239,18 +253,35 @@ export default function AdminManagement() {
                                     </td>
                                     <td className="px-6 py-4 text-sm font-medium text-gray-700">
                                         {admin.type === "google" ? (
-                                            <div className="flex flex-col">
-                                                {/* 優先顯示 Google 名稱，若無則顯示 Email */}
-                                                <span>{admin.accountName || admin.email}</span>
-                                                {/* 若有名稱，則將 Email 縮小顯示在下方 */}
-                                                {admin.accountName && (
-                                                    <span className="text-[10px] text-gray-400 mt-0.5">{admin.email}</span>
-                                                )}
-                                                {admin.uid && (
-                                                    <span className="text-[10px] text-gray-300 font-mono mt-0.5">
-                                                        UID: {admin.uid.substring(0, 8)}...
-                                                    </span>
-                                                )}
+                                            <div className="flex items-center gap-3">
+                                                {/* Google 頭像 */}
+                                                <div className="flex-shrink-0">
+                                                    {admin.photoURL ? (
+                                                        <img
+                                                            src={admin.photoURL}
+                                                            alt=""
+                                                            className="w-10 h-10 rounded-full border-2 border-white shadow-sm"
+                                                            referrerPolicy="no-referrer"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center text-red-500 border border-red-100">
+                                                            <Mail size={16} />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    {/* 優先顯示 Google 名稱，若無則顯示 Email */}
+                                                    <span className="font-bold">{admin.accountName || admin.email}</span>
+                                                    {/* 若有名稱，則將 Email 縮小顯示在下方 */}
+                                                    {admin.accountName && (
+                                                        <span className="text-[10px] text-gray-400 mt-0.5">{admin.email}</span>
+                                                    )}
+                                                    {admin.uid && (
+                                                        <span className="text-[10px] text-gray-300 font-mono mt-0.5">
+                                                            UID: {admin.uid.substring(0, 8)}...
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         ) : (
                                             <div className="flex flex-col">

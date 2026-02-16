@@ -453,8 +453,18 @@ function HomeContent() {
               <div className="flex items-center gap-4">
                 <h2 className="text-xl md:text-2xl font-bold">後台管理控制面板</h2>
                 {user && (
-                  <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded text-gray-500 font-sans tracking-tight">
-                    ADMIN: {user.email || user.displayName || "手動授權"}
+                  <span className="text-xs bg-gray-100 px-3 py-1 rounded-full text-gray-600 font-bold flex items-center gap-2">
+                    {user.photoURL ? (
+                      <img
+                        src={user.photoURL}
+                        alt="Avatar"
+                        className="w-5 h-5 rounded-full border border-white shadow-sm"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                    )}
+                    {user.displayName || user.email?.split('@')[0]}，您好
                   </span>
                 )}
               </div>
