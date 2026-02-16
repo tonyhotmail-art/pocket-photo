@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { db } from "@/lib/firebase";
-import { collection, query, orderBy, onSnapshot, where, limit, doc, getDoc } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, where, limit } from "firebase/firestore";
 import { Category, PortfolioItem } from "@/lib/schema";
 import Sidebar from "@/components/Sidebar";
 import MainGallery from "@/components/MainGallery";
@@ -13,8 +13,7 @@ import WorkManager from "@/components/WorkManager";
 import AdminManagement from "@/components/AdminManagement";
 import LoginModal from "@/components/LoginModal";
 import { useAuth } from "@/components/AuthContext";
-import { siteConfig } from "@/lib/config";
-import { Settings, Image as ImageIcon, Loader2, X, LogOut, MessageCircle } from "lucide-react";
+import { Settings, Image as ImageIcon, Loader2, X, LogOut } from "lucide-react";
 import { clsx } from "clsx";
 
 export default function Home() {
@@ -65,33 +64,6 @@ export default function Home() {
     });
     return () => unsubscribe();
   }, []);
-
-  // 處理 URL 參數（深層連結）
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const itemId = params.get("item");
-    if (itemId) {
-      // 先從現有的 items 找
-      const existingItem = items.find(i => i.id === itemId);
-      if (existingItem) {
-        setSelectedItem(existingItem);
-      } else {
-        // 如果不在現有清單中，去資料庫抓資料
-        const fetchItem = async () => {
-          try {
-            const docRef = doc(db, "portfolio_items", itemId);
-            const docSnap = await getDoc(docRef);
-            if (docSnap.exists()) {
-              setSelectedItem({ id: docSnap.id, ...docSnap.data() } as PortfolioItem);
-            }
-          } catch (err) {
-            console.error("抓取特定作品失敗:", err);
-          }
-        };
-        fetchItem();
-      }
-    }
-  }, [items.length]); // 依賴 items.length 確保初次載入後會檢查一次
 
   // 讀取作品
   useEffect(() => {
@@ -291,15 +263,8 @@ export default function Home() {
       )}
 
       {/* Mobile Top Bar */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#F8F7F3]/80 backdrop-blur-md border-b border-gray-100 z-30 flex items-center justify-between px-6">
-        <div className="w-10" /> {/* Spacer for balance */}
-        <h1 className="text-xl font-bold tracking-tighter cursor-pointer" onClick={() => handleCategoryChange("all")}>KELLY PHOTO</h1>
-        <button
-          onClick={() => window.open(siteConfig.lineAtUrl, "_blank")}
-          className="w-10 h-10 bg-[#06C755] text-white rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform"
-        >
-          <MessageCircle size={18} fill="currentColor" />
-        </button>
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#F8F7F3]/80 backdrop-blur-md border-b border-gray-100 z-30 flex items-center justify-center px-6">
+        <h1 className="text-xl font-bold tracking-tighter">KELLY PHOTO</h1>
       </div>
 
       <Sidebar

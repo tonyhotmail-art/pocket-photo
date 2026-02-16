@@ -1,7 +1,7 @@
 "use client";
 
 import { PortfolioItem, Category } from "@/lib/schema";
-import { X, ChevronLeft, ChevronRight, Trash2, Loader2, Share2, Check } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Trash2, Loader2 } from "lucide-react";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { clsx } from "clsx";
 import { authenticatedFetch } from "@/lib/api-client";
@@ -37,7 +37,6 @@ export default function Lightbox({
     const [direction, setDirection] = useState<"left" | "right" | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [isUpdating, setIsUpdating] = useState(false);
-    const [copied, setCopied] = useState(false);
     const touchStartX = useRef<number | null>(null);
     const lastWheelTime = useRef<number>(0);
     const initialItemId = useRef<string | null>(null);
@@ -51,46 +50,15 @@ export default function Lightbox({
                 setCurrentIndex(index);
                 setDirection(null);
                 initialItemId.current = initialItem.id;
-
-                // 更新 URL 參數 (但不產生新的歷史紀錄)
-                const url = new URL(window.location.href);
-                url.searchParams.set("item", initialItem.id);
-                window.history.replaceState({}, "", url.toString());
             }
         } else {
             setCurrentIndex(-1);
             initialItemId.current = null;
-
-            // 關閉時移除 URL 參數
-            const url = new URL(window.location.href);
-            url.searchParams.delete("item");
-            window.history.replaceState({}, "", url.toString());
         }
     }, [initialItem]);
 
+
     const activeItem = currentIndex >= 0 ? items[currentIndex] : null;
-
-    // 當索引改變時更新 URL
-    useEffect(() => {
-        if (activeItem?.id) {
-            const url = new URL(window.location.href);
-            if (url.searchParams.get("item") !== activeItem.id) {
-                url.searchParams.set("item", activeItem.id);
-                window.history.replaceState({}, "", url.toString());
-            }
-        }
-    }, [activeItem]);
-
-    const handleShare = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (!activeItem?.id) return;
-
-        const url = window.location.href; // 已經包含 ?item=...
-        navigator.clipboard.writeText(url).then(() => {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-        });
-    };
 
     const handleDelete = async (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -313,16 +281,6 @@ export default function Lightbox({
 
                     {/* 右側：管理員功能與關閉 */}
                     <div className="flex items-center gap-3 pointer-events-auto">
-                        <button
-                            onClick={handleShare}
-                            className={clsx(
-                                "p-2.5 rounded-full transition-all bg-black/40 backdrop-blur-md hover:bg-black/60 shadow-sm border border-white/10",
-                                copied ? "text-green-400 border-green-400" : "text-white/80 hover:text-white"
-                            )}
-                            title="分享此照片"
-                        >
-                            {copied ? <Check size={20} /> : <Share2 size={20} strokeWidth={1.5} />}
-                        </button>
                         {isAdmin && (
                             <button
                                 onClick={handleDelete}

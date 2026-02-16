@@ -4,12 +4,8 @@ interface AccessConfig {
 }
 
 export const siteConfig = {
-  name: "KELLY PHOTO",
-  description: "Makeup Artist Portfolio",
-  lineAtUrl: "https://line.me/R/ti/p/@your_id", // 請替換成您的 LINE@ 連結
-  lineId: "@your_id",
-  instagramUrl: "https://instagram.com/",
-  facebookUrl: "https://facebook.com/",
+  name: "Antigravity Portfolio",
+  description: "A type-A personal portfolio module.",
 };
 
 export const firebaseConfig = {
