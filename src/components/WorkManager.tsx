@@ -335,12 +335,12 @@ export default function WorkManager() {
                                     {isSelected && <div className="w-2.5 h-2.5 bg-white rounded-full" />}
                                 </div>
 
-                                {/* 照片預覽 */}
-                                <div className="aspect-[4/3] relative overflow-hidden bg-gray-100">
+                                {/* 照片預覽：改為完整模式 (Contain) 以避免人像裁切 */}
+                                <div className="aspect-square relative overflow-hidden bg-gray-50">
                                     <img
                                         src={item.imageUrl}
                                         alt={item.title}
-                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                        className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-105"
                                     />
                                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 pointer-events-none">
                                         {/* 遮罩，讓點擊優先觸發 selection */}

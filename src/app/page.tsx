@@ -389,7 +389,7 @@ function HomeContent() {
       />
 
       {/* 右下角功能按鈕組群 */}
-      <div className="fixed bottom-8 right-8 flex flex-col gap-4 z-40 items-center">
+      <div className="fixed bottom-6 right-6 md:bottom-8 md:right-8 flex flex-col gap-3 md:gap-4 z-40 items-center">
         {/* 1. 分享作品集 */}
         <button
           onClick={() => {
@@ -406,10 +406,10 @@ function HomeContent() {
               alert("您的瀏覽器不支援自動複製，請手動複製網址：" + url);
             }
           }}
-          className="p-3 bg-white text-[#1A1A1A] shadow-xl rounded-full hover:scale-110 transition-transform border border-gray-100 flex items-center justify-center"
+          className="p-2.5 md:p-3 bg-white text-[#1A1A1A] shadow-xl rounded-full hover:scale-110 transition-transform border border-gray-100 flex items-center justify-center"
           title="分享整個作品集"
         >
-          <Share2 size={24} strokeWidth={1.5} />
+          <Share2 className="w-5 h-5 md:w-6 md:h-6" strokeWidth={1.5} />
         </button>
 
         {/* 2. 聯繫作者 LINE@ */}
@@ -417,22 +417,22 @@ function HomeContent() {
           href="https://lin.ee/aS8aSlB"
           target="_blank"
           rel="noopener noreferrer"
-          className="p-3 bg-[#00B900] text-white shadow-xl rounded-full hover:scale-110 transition-transform flex items-center justify-center border border-white/20"
+          className="p-2.5 md:p-3 bg-[#00B900] text-white shadow-xl rounded-full hover:scale-110 transition-transform flex items-center justify-center border border-white/20"
           title="聯繫作者 LINE@"
         >
-          <MessageCircle size={24} strokeWidth={2} />
+          <MessageCircle className="w-5 h-5 md:w-6 md:h-6" strokeWidth={2} />
         </a>
 
         {/* 3. 管理員設定 */}
         <button
           onClick={handleAdminToggle}
           className={clsx(
-            "p-3 shadow-xl rounded-full hover:scale-110 transition-transform flex items-center justify-center border",
+            "p-2.5 md:p-3 shadow-xl rounded-full hover:scale-110 transition-transform flex items-center justify-center border",
             isAdmin ? "bg-black text-white border-black" : "bg-white text-[#1A1A1A] border-gray-100"
           )}
           title={isAdmin ? "管理面板" : "管理員登入"}
         >
-          <Settings size={24} strokeWidth={1.5} />
+          <Settings className="w-5 h-5 md:w-6 md:h-6" strokeWidth={1.5} />
         </button>
       </div>
 
@@ -447,8 +447,8 @@ function HomeContent() {
       )}
 
       {showAdmin && isAdmin && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-0 md:p-4">
-          <div className="bg-white w-full md:max-w-7xl h-full md:h-auto md:max-h-[95vh] md:rounded-2xl shadow-2xl relative flex flex-col overflow-hidden">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-0 md:p-4 touch-none overscroll-none">
+          <div className="bg-white w-full h-[100dvh] md:h-auto md:max-h-[95vh] md:max-w-7xl md:rounded-2xl shadow-2xl relative flex flex-col overflow-hidden">
             <div className="p-5 md:p-6 border-b flex justify-between items-center bg-white z-10">
               <div className="flex items-center gap-4">
                 <h2 className="text-xl md:text-2xl font-bold">後台管理控制面板</h2>
@@ -491,7 +491,7 @@ function HomeContent() {
             </div>
 
             <div
-              className="p-4 md:p-6 overflow-y-auto flex-1 custom-scrollbar"
+              className="p-4 md:p-6 overflow-y-auto flex-1 custom-scrollbar overscroll-contain touch-pan-y"
               onWheel={(e) => e.stopPropagation()}
             >
               <div className="space-y-12">
