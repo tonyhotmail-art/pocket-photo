@@ -20,10 +20,10 @@ const notoSerifTC = Noto_Serif_TC({
 
 export const metadata: Metadata = {
   title: "Kelly's Portfolio | 彩妝作品集",
-  description: "專業彩妝造型作品集 - 日系極簡美學",
+  description: "專業彩妝造型作品集",
   openGraph: {
     title: "Kelly's Portfolio | 彩妝作品集",
-    description: "專業彩妝造型作品集 - 日系極簡美學",
+    description: "專業彩妝造型作品集",
     type: "website",
     locale: "zh_TW",
     siteName: "Kelly's Portfolio",
