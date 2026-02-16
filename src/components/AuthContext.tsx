@@ -10,7 +10,7 @@ import {
     browserLocalPersistence
 } from "firebase/auth";
 import { auth, googleProvider, db } from "@/lib/firebase";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, updateDoc, doc, serverTimestamp } from "firebase/firestore";
 
 interface AuthContextType {
     user: User | null;
@@ -62,12 +62,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    // 同步管理員個人資料 (如名稱、UID)
+    const syncAdminProfile = async (currentUser: User) => {
+        try {
+            const adminsRef = collection(db, "admins");
+            if (!currentUser.email) return;
+
+            // 搜尋匹配此 Email 的 Google 類型管理員
+            const q = query(adminsRef,
+                where("type", "==", "google"),
+                where("email", "==", currentUser.email.toLowerCase())
+            );
+            const snap = await getDocs(q);
+
+            for (const adminDoc of snap.docs) {
+                const data = adminDoc.data();
+                // 如果 UID 尚未紀錄，或名稱與 Google 不一致，則更新
+                if (data.uid !== currentUser.uid || data.accountName !== currentUser.displayName) {
+                    await updateDoc(doc(db, "admins", adminDoc.id), {
+                        uid: currentUser.uid,
+                        // 優先使用 Google 提供的名稱，若無則保留原樣
+                        accountName: currentUser.displayName || data.accountName || "",
+                        lastLogin: serverTimestamp()
+                    });
+                }
+            }
+        } catch (error) {
+            console.error("同步管理員資料失敗:", error);
+        }
+    };
+
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             setUser(currentUser);
             if (currentUser) {
                 const adminResult = await checkAdminStatus(currentUser);
                 setIsAdminState(adminResult);
+
+                // 如果確認是管理員，且是透過 Google 登入，則同步資料
+                if (adminResult && currentUser.providerData.some(p => p.providerId === 'google.com')) {
+                    syncAdminProfile(currentUser);
+                }
             } else {
                 setIsAdminState(false);
             }

@@ -240,8 +240,17 @@ export default function AdminManagement() {
                                     <td className="px-6 py-4 text-sm font-medium text-gray-700">
                                         {admin.type === "google" ? (
                                             <div className="flex flex-col">
-                                                <span>{admin.email}</span>
-                                                {admin.uid && <span className="text-[10px] text-gray-300 font-mono mt-0.5">UID: {admin.uid.substring(0, 8)}...</span>}
+                                                {/* 優先顯示 Google 名稱，若無則顯示 Email */}
+                                                <span>{admin.accountName || admin.email}</span>
+                                                {/* 若有名稱，則將 Email 縮小顯示在下方 */}
+                                                {admin.accountName && (
+                                                    <span className="text-[10px] text-gray-400 mt-0.5">{admin.email}</span>
+                                                )}
+                                                {admin.uid && (
+                                                    <span className="text-[10px] text-gray-300 font-mono mt-0.5">
+                                                        UID: {admin.uid.substring(0, 8)}...
+                                                    </span>
+                                                )}
                                             </div>
                                         ) : (
                                             <div className="flex flex-col">
