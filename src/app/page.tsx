@@ -286,29 +286,8 @@ function HomeContent() {
       )}
 
       {/* Mobile Top Bar */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#F8F7F3]/80 backdrop-blur-md border-b border-gray-100 z-30 flex items-center justify-between px-6">
-        <div className="w-10" /> {/* 佔位用以置中標題 */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#F8F7F3]/80 backdrop-blur-md border-b border-gray-100 z-30 flex items-center justify-center px-6">
         <h1 className="text-xl font-bold tracking-tighter">KELLY PHOTO</h1>
-        <button
-          onClick={() => {
-            const url = `${window.location.origin}${window.location.pathname}`;
-            if (navigator.share) {
-              navigator.share({
-                title: `Kelly Photo 作品集`,
-                url: url
-              }).catch(console.error);
-            } else if (navigator.clipboard) {
-              navigator.clipboard.writeText(url);
-              alert("網址已複製到剪貼簿");
-            } else {
-              alert("您的瀏覽器不支援自動複製，請手動複製網址：" + url);
-            }
-          }}
-          className="p-2 text-gray-400 hover:text-[#1A1A1A] transition-colors"
-          aria-label="分享作品集"
-        >
-          <Share2 size={20} strokeWidth={1.5} />
-        </button>
       </div>
 
       <Sidebar
@@ -409,26 +388,53 @@ function HomeContent() {
         onItemUpdate={handleItemUpdate}
       />
 
-      <button
-        onClick={handleAdminToggle}
-        className={clsx(
-          "fixed bottom-24 right-8 p-3 shadow-xl rounded-full hover:scale-110 transition-transform z-50",
-          isAdmin ? "bg-black text-white" : "bg-white text-[#1A1A1A] border border-gray-100"
-        )}
-      >
-        <Settings size={24} strokeWidth={1.5} />
-      </button>
+      {/* 右下角功能按鈕組群 */}
+      <div className="fixed bottom-8 right-8 flex flex-col gap-4 z-40 items-center">
+        {/* 1. 分享作品集 */}
+        <button
+          onClick={() => {
+            const url = `${window.location.origin}${window.location.pathname}`;
+            if (navigator.share) {
+              navigator.share({
+                title: `Kelly Photo 作品集`,
+                url: url
+              }).catch(console.error);
+            } else if (navigator.clipboard) {
+              navigator.clipboard.writeText(url);
+              alert("網址已複製到剪貼簿");
+            } else {
+              alert("您的瀏覽器不支援自動複製，請手動複製網址：" + url);
+            }
+          }}
+          className="p-3 bg-white text-[#1A1A1A] shadow-xl rounded-full hover:scale-110 transition-transform border border-gray-100 flex items-center justify-center"
+          title="分享整個作品集"
+        >
+          <Share2 size={24} strokeWidth={1.5} />
+        </button>
 
-      {/* LINE@ 聯繫按鈕 (手機版懸浮 / 電腦版也可視) */}
-      <a
-        href="https://lin.ee/aS8aSlB"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="fixed bottom-8 right-8 p-3 bg-[#00B900] text-white shadow-xl rounded-full hover:scale-110 transition-transform z-50 flex items-center justify-center border border-white/20"
-        title="聯繫作者 LINE@"
-      >
-        <MessageCircle size={24} strokeWidth={2} />
-      </a>
+        {/* 2. 聯繫作者 LINE@ */}
+        <a
+          href="https://lin.ee/aS8aSlB"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="p-3 bg-[#00B900] text-white shadow-xl rounded-full hover:scale-110 transition-transform flex items-center justify-center border border-white/20"
+          title="聯繫作者 LINE@"
+        >
+          <MessageCircle size={24} strokeWidth={2} />
+        </a>
+
+        {/* 3. 管理員設定 */}
+        <button
+          onClick={handleAdminToggle}
+          className={clsx(
+            "p-3 shadow-xl rounded-full hover:scale-110 transition-transform flex items-center justify-center border",
+            isAdmin ? "bg-black text-white border-black" : "bg-white text-[#1A1A1A] border-gray-100"
+          )}
+          title={isAdmin ? "管理面板" : "管理員登入"}
+        >
+          <Settings size={24} strokeWidth={1.5} />
+        </button>
+      </div>
 
       {showLogin && (
         <LoginModal
