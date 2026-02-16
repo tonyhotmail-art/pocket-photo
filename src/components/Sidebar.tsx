@@ -2,7 +2,8 @@
 
 import { Category } from "@/lib/schema";
 import { clsx } from "clsx";
-import { X } from "lucide-react";
+import { X, Share2, Link as LinkIcon, MessageCircle } from "lucide-react";
+import { useState } from "react";
 
 interface SidebarProps {
     categories: Category[];
@@ -26,31 +27,84 @@ export default function Sidebar({
                 </div>
 
                 <nav className="flex flex-col gap-8 flex-1 overflow-y-auto no-scrollbar py-8 w-full items-center">
-                    <button
-                        onClick={() => onSelectCategory("all")}
-                        className={clsx(
-                            "vertical-serif text-sm transition-all duration-300 w-10 py-10 rounded-sm flex items-center justify-center",
-                            selectedCategoryName === "all"
-                                ? "bg-[#1A1A1A] text-white font-bold shadow-md"
-                                : "text-gray-400 hover:text-gray-600 hover:bg-gray-100/50"
-                        )}
-                    >
-                        全部作品 / ALL
-                    </button>
-
-                    {categories.map((category) => (
+                    <div className="relative group w-full flex flex-col items-center">
                         <button
-                            key={category.id}
-                            onClick={() => onSelectCategory(category.name)}
+                            onClick={() => onSelectCategory("all")}
                             className={clsx(
                                 "vertical-serif text-sm transition-all duration-300 w-10 py-10 rounded-sm flex items-center justify-center",
-                                selectedCategoryName === category.name
+                                selectedCategoryName === "all"
                                     ? "bg-[#1A1A1A] text-white font-bold shadow-md"
-                                    : "text-gray-400 border-transparent hover:text-gray-600 hover:bg-gray-100/50"
+                                    : "text-gray-400 hover:text-gray-600 hover:bg-gray-100/50"
                             )}
                         >
-                            {category.name}
+                            全部作品 / ALL
                         </button>
+
+                        {/* 分享全站小圖示 */}
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                const url = `${window.location.origin}${window.location.pathname}`;
+                                if (navigator.share) {
+                                    navigator.share({
+                                        title: `Kelly Photo 作品集`,
+                                        url: url
+                                    }).catch(console.error);
+                                } else {
+                                    navigator.clipboard.writeText(url);
+                                    alert("網址已複製到剪貼簿");
+                                }
+                            }}
+                            className={clsx(
+                                "absolute -right-2 top-0 p-1.5 rounded-full bg-white shadow-sm border border-gray-100 text-gray-400 hover:text-[#1A1A1A] transition-all opacity-0 group-hover:opacity-100",
+                                selectedCategoryName === "all" && "opacity-100"
+                            )}
+                            title="分享整個作品集"
+                        >
+                            <Share2 size={12} />
+                        </button>
+                    </div>
+
+                    {categories.map((category) => (
+                        <div key={category.id} className="relative group w-full flex flex-col items-center">
+                            <button
+                                onClick={() => onSelectCategory(category.name)}
+                                className={clsx(
+                                    "vertical-serif text-sm transition-all duration-300 w-10 py-10 rounded-sm flex items-center justify-center",
+                                    selectedCategoryName === category.name
+                                        ? "bg-[#1A1A1A] text-white font-bold shadow-md"
+                                        : "text-gray-400 border-transparent hover:text-gray-600 hover:bg-gray-100/50"
+                                )}
+                            >
+                                {category.name}
+                            </button>
+
+                            {/* 分享分類小圖示 - 僅在選中或懸停時顯示 */}
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    const url = `${window.location.origin}${window.location.pathname}`;
+                                    if (navigator.share) {
+                                        navigator.share({
+                                            title: `Kelly Photo - ${category.name}`,
+                                            url: url
+                                        }).catch(console.error);
+                                    } else if (navigator.clipboard) {
+                                        navigator.clipboard.writeText(url);
+                                        alert("網址已複製到剪貼簿");
+                                    } else {
+                                        alert("您的瀏覽器不支援自動複製，請手動複製網址：" + url);
+                                    }
+                                }}
+                                className={clsx(
+                                    "absolute -right-2 top-0 p-1.5 rounded-full bg-white shadow-sm border border-gray-100 text-gray-400 hover:text-[#1A1A1A] transition-all opacity-0 group-hover:opacity-100",
+                                    selectedCategoryName === category.name && "opacity-100"
+                                )}
+                                title="分享此分類"
+                            >
+                                <Share2 size={12} />
+                            </button>
+                        </div>
                     ))}
                 </nav>
 

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { db } from "@/lib/firebase";
-import { collection, query, orderBy, onSnapshot, where, limit } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, where, limit, getDoc, doc } from "firebase/firestore";
 import { Category, PortfolioItem } from "@/lib/schema";
 import Sidebar from "@/components/Sidebar";
 import MainGallery from "@/components/MainGallery";
@@ -13,10 +13,11 @@ import WorkManager from "@/components/WorkManager";
 import AdminManagement from "@/components/AdminManagement";
 import LoginModal from "@/components/LoginModal";
 import { useAuth } from "@/components/AuthContext";
-import { Settings, Image as ImageIcon, Loader2, X, LogOut } from "lucide-react";
+import { Settings, Image as ImageIcon, Loader2, X, LogOut, MessageCircle, Share2 } from "lucide-react";
 import { clsx } from "clsx";
+import { useSearchParams } from "next/navigation";
 
-export default function Home() {
+function HomeContent() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [items, setItems] = useState<PortfolioItem[]>([]);
   const [selectedCategoryName, setSelectedCategoryName] = useState("all");
@@ -35,6 +36,28 @@ export default function Home() {
   const isAtTop = useRef<boolean>(true);
 
   const { isAdmin, logout, user } = useAuth();
+  const searchParams = useSearchParams();
+  const initialPhotoId = searchParams.get("id");
+  const hasAutoOpened = useRef(false);
+
+  // 當網址有 id 時，讀取該張照片
+  useEffect(() => {
+    if (initialPhotoId && !hasAutoOpened.current) {
+      const fetchInitialItem = async () => {
+        try {
+          const docRef = doc(db, "portfolio_items", initialPhotoId);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setSelectedItem({ id: docSnap.id, ...docSnap.data() } as PortfolioItem);
+            hasAutoOpened.current = true;
+          }
+        } catch (error) {
+          console.error("讀取初始照片失敗:", error);
+        }
+      };
+      fetchInitialItem();
+    }
+  }, [initialPhotoId]);
 
   // 消洗訊息過濾與自動開啟邏輯 (由下方移至此處以避免 TDZ 錯誤)
   const shouldOpenFirstItem = useRef(false);
@@ -263,8 +286,29 @@ export default function Home() {
       )}
 
       {/* Mobile Top Bar */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#F8F7F3]/80 backdrop-blur-md border-b border-gray-100 z-30 flex items-center justify-center px-6">
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#F8F7F3]/80 backdrop-blur-md border-b border-gray-100 z-30 flex items-center justify-between px-6">
+        <div className="w-10" /> {/* 佔位用以置中標題 */}
         <h1 className="text-xl font-bold tracking-tighter">KELLY PHOTO</h1>
+        <button
+          onClick={() => {
+            const url = `${window.location.origin}${window.location.pathname}`;
+            if (navigator.share) {
+              navigator.share({
+                title: `Kelly Photo 作品集`,
+                url: url
+              }).catch(console.error);
+            } else if (navigator.clipboard) {
+              navigator.clipboard.writeText(url);
+              alert("網址已複製到剪貼簿");
+            } else {
+              alert("您的瀏覽器不支援自動複製，請手動複製網址：" + url);
+            }
+          }}
+          className="p-2 text-gray-400 hover:text-[#1A1A1A] transition-colors"
+          aria-label="分享作品集"
+        >
+          <Share2 size={20} strokeWidth={1.5} />
+        </button>
       </div>
 
       <Sidebar
@@ -368,12 +412,23 @@ export default function Home() {
       <button
         onClick={handleAdminToggle}
         className={clsx(
-          "fixed bottom-8 right-8 p-3 shadow-xl rounded-full hover:scale-110 transition-transform z-50",
-          isAdmin ? "bg-black text-white" : "bg-white text-[#1A1A1A]"
+          "fixed bottom-24 right-8 p-3 shadow-xl rounded-full hover:scale-110 transition-transform z-50",
+          isAdmin ? "bg-black text-white" : "bg-white text-[#1A1A1A] border border-gray-100"
         )}
       >
         <Settings size={24} strokeWidth={1.5} />
       </button>
+
+      {/* LINE@ 聯繫按鈕 (手機版懸浮 / 電腦版也可視) */}
+      <a
+        href="https://lin.ee/aS8aSlB"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-8 right-8 p-3 bg-[#00B900] text-white shadow-xl rounded-full hover:scale-110 transition-transform z-50 flex items-center justify-center border border-white/20"
+        title="聯繫作者 LINE@"
+      >
+        <MessageCircle size={24} strokeWidth={2} />
+      </a>
 
       {showLogin && (
         <LoginModal
@@ -448,5 +503,17 @@ export default function Home() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="h-screen flex items-center justify-center bg-[#F8F7F3]">
+        <Loader2 className="animate-spin text-gray-300" size={32} />
+      </div>
+    }>
+      <HomeContent />
+    </Suspense>
   );
 }
