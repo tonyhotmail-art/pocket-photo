@@ -179,6 +179,9 @@ function HomeContent() {
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      // 安全性檢查：只接受來自同一網域的訊息
+      if (event.origin !== window.location.origin) return;
+
       if (event.data?.type === 'AUTO_OPEN_FIRST_ITEM') {
         shouldOpenFirstItem.current = true;
         if (selectedCategoryName !== "all") {
