@@ -128,7 +128,7 @@ export default function WorkManager() {
             if (selectedIds.has(id)) {
                 const newSet = new Set(selectedIds);
                 newSet.delete(id);
-                setSelectedIds(newSet);
+                loadPage(currentPage); // 刪除後更新當前頁面
             }
             loadCategoryCounts(); // 刪除後更新頂部計數
         } catch (error) {
@@ -145,40 +145,24 @@ export default function WorkManager() {
         const count = selectedIds.size;
         if (!confirm(`確定要刪除選取的 ${count} 件作品嗎？此操作無法復原，圖片檔案也會一併刪除。`)) return;
 
-        setIsBatchDeleting(true);
         try {
-            // 逐一刪除選取的項目
-            const deletePromises = Array.from(selectedIds).map(async (id) => {
-                // 先取得作品資料以獲取圖片 URL
-                const itemRef = doc(db, "portfolio_items", id);
-                const itemSnap = await getDoc(itemRef);
-
-                if (itemSnap.exists()) {
-                    const imageUrl = itemSnap.data().imageUrl;
-
-                    // 刪除 Firestore 文件
-                    await deleteDoc(itemRef);
-
-                    // 呼叫 API 刪除 R2 圖片
-                    if (imageUrl) {
-                        await fetch("/api/delete-image", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ imageUrl })
-                        });
-                    }
-                }
+            const idList = Array.from(selectedIds);
+            const res = await fetch(`/api/works?ids=${idList.join(",")}`, {
+                method: "DELETE"
             });
 
-            await Promise.all(deletePromises);
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || "批次刪除失敗");
+            }
 
-            alert(`成功刪除 ${count} 件作品！`);
+            alert(`成功刪除 ${selectedIds.size} 件作品！`);
             setSelectedIds(new Set());
-            loadPage(currentPage); // 重新載入當前頁
-            loadCategoryCounts(); // 批次刪除後也更新頂部計數
+            loadPage(1); // 批次刪除後回到第一頁刷新
+            loadCategoryCounts(); // 更新頂部計數
         } catch (error) {
             console.error("Batch delete error:", error);
-            alert("批次刪除發生錯誤，請稍後再試。");
+            alert("部分項目刪除失敗，請檢查網路後再試。");
         } finally {
             setIsBatchDeleting(false);
         }

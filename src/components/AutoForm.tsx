@@ -109,35 +109,47 @@ export default function AutoForm() {
         }
 
         try {
-            const processed = await Promise.all(validFiles.map(async file => {
+            const processed = [];
+            const batchHashes = new Set<string>();
+            const currentQueueHashes = new Set(selectedFiles.map(f => (f as any).contentHash).filter(Boolean));
+
+            for (const file of validFiles) {
                 // 1. 計算內容指紋 (Hash)
                 const contentHash = await calculateImageHash(file);
 
-                // 2. 檢查是否重複
-                // 從 Firestore 查詢是否已存在相同的 hash
-                // 注意：這裡假設 contentHash 有建立索引
-                const q = query(
-                    collection(db, "portfolio_items"),
-                    where("contentHash", "==", contentHash),
-                    limit(1)
-                );
-                const snapshot = await getDocs(q);
-                const isDuplicate = !snapshot.empty;
+                // 2. 檢查是否重複 (本地隊列 + 本次批次 + Firestore)
+                let isDuplicate = false;
 
-                // 3. 壓縮圖片
-                const compressed = await compressImage(file, { maxWidthOrHeight: 1280 });
+                if (batchHashes.has(contentHash) || currentQueueHashes.has(contentHash)) {
+                    isDuplicate = true;
+                } else {
+                    const q = query(
+                        collection(db, "portfolio_items"),
+                        where("contentHash", "==", contentHash),
+                        limit(1)
+                    );
+                    const snapshot = await getDocs(q);
+                    isDuplicate = !snapshot.empty;
+                }
 
-                return {
-                    file: compressed,
-                    originalFile: file, // 保留原始檔案以供上傳時計算 Hash (雖然壓縮後 Hash 會變，但我們用原始內容做指紋比較準)
-                    preview: URL.createObjectURL(compressed),
-                    contentHash,
-                    isDuplicate
-                };
-            }));
+                if (!isDuplicate) {
+                    batchHashes.add(contentHash);
+                    // 3. 壓縮圖片
+                    const compressed = await compressImage(file, { maxWidthOrHeight: 1280 });
+                    processed.push({
+                        file: compressed,
+                        originalFile: file,
+                        preview: URL.createObjectURL(compressed),
+                        contentHash,
+                        isDuplicate: false
+                    });
+                } else {
+                    processed.push({ isDuplicate: true });
+                }
+            }
 
-            // 過濾掉重複的照片
-            const uniqueFiles = processed.filter(p => !p.isDuplicate);
+            // 過濾掉重複的照片，並確保型別正確
+            const uniqueFiles = processed.filter((p): p is { file: File, originalFile: File, preview: string, contentHash: string, isDuplicate: false } => !p.isDuplicate);
             const duplicateCount = processed.length - uniqueFiles.length;
 
             if (duplicateCount > 0) {
@@ -145,21 +157,17 @@ export default function AutoForm() {
             }
 
             if (uniqueFiles.length === 0 && duplicateCount > 0) {
-                // 全部都是重複的
                 return;
             }
 
             setSelectedFiles(prev => [...prev, ...uniqueFiles.map(p => {
-                // 把 hash 偷偷塞進 file 物件 (雖然這不是標準做法，但在 JS 是可行的，或者我們應該改用物件陣列存 selectedFiles)
-                // 更好的做法是修改 selectedFiles 的型別，但為了最小改動，我們這裡擴充 File 物件
                 const f = p.file as any;
                 f.contentHash = p.contentHash;
                 return f;
             })]);
 
-            setPreviews(prev => [...prev, ...uniqueFiles.map(p => p.preview)]);
+            setPreviews((prev: string[]) => [...prev, ...uniqueFiles.map(p => p.preview)]);
 
-            // 如果成功加入檔案，清空 dummy url 確保 form valid
             if (uniqueFiles.length > 0) {
                 setValue("imageUrl", "https://uploading.com/placeholder");
             }
