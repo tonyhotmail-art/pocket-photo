@@ -16,19 +16,19 @@ service cloud.firestore {
               request.auth.token.email == 'tony7777777@gmail.com');
     }
     
-    // Portfolio Items - 公開讀取,只有管理員可以寫入
+    // Portfolio Items - 公開讀取 (排除特定分類), 只有管理員可以寫入
     match /portfolio_items/{itemId} {
-      // 所有人都可以讀取作品
-      allow read: if true;
+      // 只有管理員可以讀取待分類照片；其它照片公開
+      allow read: if isAdmin() || isAuthorizedEmail() || resource.data.categoryName != '待分類照片';
       
       // 只有管理員可以建立、更新、刪除
       allow create, update, delete: if isAdmin() || isAuthorizedEmail();
     }
     
-    // Categories - 公開讀取,只有管理員可以寫入
+    // Categories - 公開讀取 (排除特定分類), 只有管理員可以寫入
     match /categories/{categoryId} {
-      // 所有人都可以讀取分類
-      allow read: if true;
+      // 只有管理員可以讀取待分類照片分類；其它公開
+      allow read: if isAdmin() || isAuthorizedEmail() || resource.data.name != '待分類照片';
       
       // 只有管理員可以建立、更新、刪除
       allow create, update, delete: if isAdmin() || isAuthorizedEmail();

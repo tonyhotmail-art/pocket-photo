@@ -110,10 +110,6 @@ export default function Lightbox({
     const handleCategoryUpdate = async (category: Category) => {
         if (!activeItem?.id || isUpdating || activeItem.categoryName === category.name) return;
 
-        if (!confirm(`確定要將此作品移動到 [${category.name}] 分類嗎？`)) {
-            return;
-        }
-
         setIsUpdating(true);
         try {
             const res = await authenticatedFetch("/api/works", {

@@ -48,7 +48,13 @@ function HomeContent() {
           const docRef = doc(db, "portfolio_items", initialPhotoId);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
-            setSelectedItem({ id: docSnap.id, ...docSnap.data() } as PortfolioItem);
+            const data = docSnap.data() as PortfolioItem;
+            // 權限檢查：若是待分類照片且使用者非管理員，則不開放開啟
+            if (data.categoryName === "待分類照片" && !isAdmin) {
+              console.warn("存取受限：未分類照片僅限管理員查看");
+              return;
+            }
+            setSelectedItem({ id: docSnap.id, ...data });
             hasAutoOpened.current = true;
           }
         } catch (error) {
@@ -73,11 +79,23 @@ function HomeContent() {
 
   // 讀取分類
   useEffect(() => {
-    const q = query(
+    let q = query(
       collection(db, "categories"),
       where("visible", "==", true),
       orderBy("order", "asc")
     );
+
+    // 若非管理員，由後端主動排除待分類標籤
+    if (!isAdmin) {
+      q = query(
+        collection(db, "categories"),
+        where("visible", "==", true),
+        where("name", "!=", "待分類照片"),
+        orderBy("name"), // 必須在首位 (不等於查詢的欄位)
+        orderBy("order", "asc")
+      );
+    }
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const cats = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -86,17 +104,12 @@ function HomeContent() {
       setCategories(cats);
     });
     return () => unsubscribe();
-  }, []);
+  }, [isAdmin]);
 
   // 讀取作品
   useEffect(() => {
     setLoading(true);
-    let q = query(
-      collection(db, "portfolio_items"),
-      orderBy("categoryOrder", "asc"),
-      orderBy("createdAt", "desc"),
-      limit(displayLimit + 1)
-    );
+    let q;
 
     if (selectedTag) {
       q = query(
@@ -114,6 +127,26 @@ function HomeContent() {
         orderBy("createdAt", "desc"),
         limit(displayLimit + 1)
       );
+    } else {
+      // 全部作品 (all)
+      if (isAdmin) {
+        q = query(
+          collection(db, "portfolio_items"),
+          orderBy("categoryOrder", "asc"),
+          orderBy("createdAt", "desc"),
+          limit(displayLimit + 1)
+        );
+      } else {
+        // 非管理員：由資料庫層級排除「待分類照片」
+        q = query(
+          collection(db, "portfolio_items"),
+          where("categoryName", "!=", "待分類照片"),
+          orderBy("categoryName"), // 必須在首位
+          orderBy("categoryOrder", "asc"),
+          orderBy("createdAt", "desc"),
+          limit(displayLimit + 1)
+        );
+      }
     }
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -136,7 +169,7 @@ function HomeContent() {
     });
 
     return () => unsubscribe();
-  }, [selectedCategoryName, selectedTag, displayLimit]);
+  }, [selectedCategoryName, selectedTag, displayLimit, isAdmin]);
 
   useEffect(() => {
     setDisplayLimit(20);

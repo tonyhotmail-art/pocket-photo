@@ -42,6 +42,7 @@ export default function AutoForm() {
             title: "",
             description: "",
             categoryOrder: 0,
+            categoryName: "待分類照片",
         }
     });
 
@@ -269,6 +270,7 @@ export default function AutoForm() {
                     ...values,
                     imageUrl: url,
                     categoryOrder,
+                    contentHash: (file as any).contentHash, // 補回 Hash 以供查重
                     createdAt: serverTimestamp(),
                     tenantId: accessConfig.tenantId || "default",
                 });
@@ -278,6 +280,10 @@ export default function AutoForm() {
             setPreviews([]);
             setSelectedFiles([]);
             if (fileInputRef.current) fileInputRef.current.value = "";
+
+            // 發送事件通知 WorkManager 刷新資料
+            window.dispatchEvent(new CustomEvent("portfolio-updated"));
+
             alert(`成功上傳 ${selectedFiles.length} 件作品！`);
         } catch (error) {
             console.error("Upload error:", error);

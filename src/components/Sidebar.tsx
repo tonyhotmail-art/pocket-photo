@@ -2,8 +2,8 @@
 
 import { Category } from "@/lib/schema";
 import { clsx } from "clsx";
-import { X, Share2, Link as LinkIcon, MessageCircle } from "lucide-react";
-import { useState } from "react";
+import { Share2 } from "lucide-react";
+import { useAuth } from "@/components/AuthContext";
 
 interface SidebarProps {
     categories: Category[];
@@ -12,10 +12,17 @@ interface SidebarProps {
 }
 
 export default function Sidebar({
-    categories,
+    categories: allCategories,
     selectedCategoryName,
     onSelectCategory,
 }: SidebarProps) {
+    const { isAdmin } = useAuth();
+
+    // 過濾分類：非管理員看不到「待分類照片」
+    const categories = isAdmin
+        ? allCategories
+        : allCategories.filter(c => c.name !== "待分類照片");
+
     return (
         <>
             {/* 電腦版側邊欄 (lg 以上) */}
