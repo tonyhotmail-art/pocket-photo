@@ -1,6 +1,7 @@
 "use client";
 
 import { PortfolioItem, Category } from "@/lib/schema";
+import NextImage from "next/image";
 import { X, ChevronLeft, ChevronRight, Trash2, Loader2, Share2, Link as LinkIcon, Copy, MessageCircle } from "lucide-react";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { clsx } from "clsx";
@@ -255,20 +256,24 @@ export default function Lightbox({
                         className="absolute inset-0 z-10 cursor-default"
                         onContextMenu={(e) => e.preventDefault()}
                     />
-                    <img
+                    <NextImage
                         key={activeItem.id}
                         src={activeItem.imageUrl}
-                        alt={activeItem.title}
+                        alt={activeItem.title || "Portfolio Image"}
+                        fill
+                        sizes="100vw"
+                        quality={90}
                         draggable="false"
                         onContextMenu={(e) => e.preventDefault()}
                         onDragStart={(e) => e.preventDefault()}
                         className={clsx(
-                            "h-full w-full object-contain select-none pointer-events-none touch-none duration-500 ease-out",
+                            "object-contain select-none pointer-events-none touch-none duration-500 ease-out",
                             direction === "right" ? "animate-in fade-in slide-in-from-right-8" :
                                 direction === "left" ? "animate-in fade-in slide-in-from-left-8" :
                                     "animate-in fade-in scale-95"
                         )}
                         style={{ WebkitTouchCallout: "none" }}
+                        priority // Lightbox 圖片應優先載入
                     />
                 </div>
 

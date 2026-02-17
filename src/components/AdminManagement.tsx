@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import NextImage from "next/image";
 import { db } from "@/lib/firebase";
 import {
     collection,
@@ -257,11 +258,14 @@ export default function AdminManagement() {
                                                 {/* Google 頭像 */}
                                                 <div className="flex-shrink-0">
                                                     {admin.photoURL ? (
-                                                        <img
+                                                        <NextImage
                                                             src={admin.photoURL}
                                                             alt=""
-                                                            className="w-10 h-10 rounded-full border-2 border-white shadow-sm"
+                                                            width={40}
+                                                            height={40}
+                                                            className="rounded-full border-2 border-white shadow-sm object-cover"
                                                             referrerPolicy="no-referrer"
+                                                            unoptimized={admin.type === "google"}
                                                         />
                                                     ) : (
                                                         <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center text-red-500 border border-red-100">

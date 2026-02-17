@@ -1,14 +1,18 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import NextImage from "next/image";
 import { db } from "@/lib/firebase";
 import { collection, query, orderBy, onSnapshot, where, getDocs, limit, startAfter, getCountFromServer, QueryConstraint, doc, getDoc, deleteDoc } from "firebase/firestore";
 import { PortfolioItem } from "@/lib/schema";
 import { Loader2, Trash2, Search, Filter, Image as ImageIcon, ExternalLink } from "lucide-react";
 import clsx from "clsx";
 
+import Lightbox from "./Lightbox";
+
 export default function WorkManager() {
     const [items, setItems] = useState<PortfolioItem[]>([]);
+    const [selectedItem, setSelectedItem] = useState<PortfolioItem | null>(null);
     const [loading, setLoading] = useState(true);
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [isBatchDeleting, setIsBatchDeleting] = useState(false);
@@ -361,23 +365,29 @@ export default function WorkManager() {
 
                                     {/* 照片預覽：改為完整模式 (Contain) 以避免人像裁切 */}
                                     <div className="aspect-square relative overflow-hidden bg-gray-50">
-                                        <img
+                                        <NextImage
                                             src={item.imageUrl}
-                                            alt={item.title}
-                                            className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-105"
+                                            alt={item.title || "Portfolio Image"}
+                                            fill
+                                            sizes="(max-width: 768px) 50vw, (max-width: 1280px) 33vw, 25vw"
+                                            className="object-contain transition-transform duration-500 group-hover:scale-105"
                                         />
                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 pointer-events-none">
                                             {/* 遮罩，讓點擊優先觸發 selection */}
                                         </div>
                                         <div className="absolute top-3 right-3 z-20" onClick={(e) => e.stopPropagation()}>
-                                            <a
-                                                href={item.imageUrl}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-colors flex items-center justify-center"
-                                            >
-                                                <ExternalLink size={16} />
-                                            </a>
+                                            <div className="absolute top-3 right-3 z-20" onClick={(e) => e.stopPropagation()}>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setSelectedItem(item);
+                                                    }}
+                                                    className="p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-colors flex items-center justify-center cursor-pointer hover:scale-110 active:scale-95"
+                                                    title="放大預覽"
+                                                >
+                                                    <ExternalLink size={16} />
+                                                </button>
+                                            </div>
                                         </div>
                                         <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-black/60 backdrop-blur-md text-white text-[9px] uppercase tracking-widest rounded-sm">
                                             {item.categoryName}
@@ -510,6 +520,21 @@ export default function WorkManager() {
                     </div>
                 )
             }
+
+            {/* Lightbox 預覽 */}
+            {selectedItem && (
+                <Lightbox
+                    item={selectedItem}
+                    items={filteredItems}
+                    isAdmin={true}
+                    onClose={() => setSelectedItem(null)}
+                    onItemUpdate={(updatedItem) => {
+                        setItems(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
+                        setSelectedItem(updatedItem);
+                    }}
+                // categories={categories} // TODO: 若需要在 Lightbox 內更改分類，需傳入完整的 Category 物件陣列
+                />
+            )}
         </div >
     );
 }

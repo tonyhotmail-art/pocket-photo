@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, Suspense } from "react";
+import NextImage from "next/image";
 import { db } from "@/lib/firebase";
 import { collection, query, orderBy, onSnapshot, where, limit, getDoc, doc } from "firebase/firestore";
 import { Category, PortfolioItem } from "@/lib/schema";
@@ -492,11 +493,14 @@ function HomeContent() {
                 {user && (
                   <span className="text-xs bg-gray-100 px-3 py-1 rounded-full text-gray-600 font-bold flex items-center gap-2">
                     {user.photoURL ? (
-                      <img
+                      <NextImage
                         src={user.photoURL}
                         alt="Avatar"
-                        className="w-5 h-5 rounded-full border border-white shadow-sm"
+                        width={20}
+                        height={20}
+                        className="rounded-full border border-white shadow-sm"
                         referrerPolicy="no-referrer"
+                        unoptimized={true} // Google User Content URL
                       />
                     ) : (
                       <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
