@@ -1,436 +1,50 @@
-# KELLY PHOTO 作品集系統 - 開發規範
+# KELLY PHOTO 作品集系統 - 開發規範 (ROOT)
 
-## 🚨 規則 0: 開發優先權核心原則 (最重要)
+## 規則 0：開發優先權核心原則
 
-### 本地開發優先
-- **預設行為**: 除非使用者明確要求更新 GIT 或表明是線上版問題，否則一律以 **本地開發** 為優先。
-- **禁止事項**: 除非被要求，否則禁止主動建議或執行 Git Push / Vercel Deploy 等線上操作。
-- **🚨 歷史教訓 (2026-02-16)**: 曾發生 AI 未經授權推播導致回溯版本。未來 AI 若在未取得明確授權且未經本地測試的情況下執行推送，即視為任務失敗。
-- **自動判斷**: 遇到問題時，優先檢查本地環境 (localhost)、本地檔案與本地配置。
+- **本地開發優先**：除非使用者明確要求，否則一律以 `localhost` 為優先。
+- **禁止自動推送**：嚴禁未經授權且未經本地 `npm run build` 測試即執行 `git push`。
+- **部署節流**：Vercel 每日部署限制為 100 次，每次操作前 AI 必須提醒使用者檢查配額。
 
----
+## 規則 1：語言、輸出與註解約定
 
-## 🌐 規則 1: 永遠使用繁體中文與動態年份
+- **語言規範**：所有回覆、代碼註解、Git Commit 及 UI 文字一律使用繁體中文。
+- **動態年份**：頁尾年份必須使用 `new Date().getFullYear()`，確保顯示為當前年份 (2026)，禁止硬編碼。
+- **註解規範**：函式必須提供 JSDoc 註解，使用標記：`// TODO`, `// FIXME`, `// NOTE`。
 
-### 語言規範
-- **所有代碼註解**: 必須使用繁體中文
-- **Git Commit 訊息**: 必須使用繁體中文
-- **API 錯誤訊息**: 必須使用繁體中文
-- **UI 文字**: 必須使用繁體中文
-- **變數命名**: 使用英文,但註解必須是繁體中文
+## 規則 2：核心技術棧
 
-### 動態年份
-- 頁尾年份必須使用 `new Date().getFullYear()` 動態抓取
-- 確保顯示為當前年份 (2026)
-- 禁止硬編碼年份
+- **架構**：Next.js 15+ (App Router)、React 函式元件、Tailwind CSS 4+、shadcn/ui。
+- **儲存與資料庫**：Cloudflare R2 (圖片檔)、Firestore (中繼資料與 URL)。
+- **驗證**：TypeScript 5+、Zod 4+。
 
-```typescript
-// ✅ 正確
-<footer>© {new Date().getFullYear()} Kelly Photo. 版權所有。</footer>
+## 規則 3：嚴格分層、多租戶與 R2 儲存架構
 
-// ❌ 錯誤
-<footer>© 2025 Kelly Photo. 版權所有。</footer>
-```
+- **分層結構**：`UI -> API Route -> Service -> Repository -> R2 / Firestore`。
+- **多租戶支援**：所有資料表必須包含 `tenantId`，且所有查詢必須強制包含該欄位過濾。
+- **R2 封裝**：圖片上傳必須透過 `src/lib/r2.ts` 封裝，禁止在組件端直接呼叫 SDK。
 
----
+## 規則 4：Firestore 索引與查詢
 
-## 🛠️ 規則 2: 核心技術棧 (Tech Stack) 規範
+- **索引強制化**：涉及 `orderBy` 與 `where` 的複合查詢必須建立索引。
+- **索引溯源 (Traceability)**：每一條索引必須在 `firestore.indexes.md` 中有對應的紀錄，標註出處（檔案路徑與功能描述）。
+- **管理方式**：索引優先定義於 `firestore.indexes.json`，說明文件定義於 `firestore.indexes.md`。
+- **定期清理**：更動索引設定時，必須同時檢查並移除不再使用的無用索引，並同步更新 `firestore.indexes.md`。
 
-### 必須使用的技術
+## 規則 5：安全與環境變數
 
-| 類別 | 技術 | 版本要求 |
-|------|------|----------|
-| 框架 | Next.js | 15+ (App Router) |
-| 後端/資料庫 | Firebase | Client SDK + Admin SDK |
-| 樣式 | Tailwind CSS | 4+ |
-| 型別 | TypeScript | 5+ |
-| 驗證 | Zod | 4+ |
-| UI 元件 | lucide-react | 最新版 |
-| 圖片壓縮 | browser-image-compression | 2+ |
-| UUID | uuid | 13+ |
+- **集中式驗證**：所有敏感金鑰必須在 `src/lib/env.ts` 透過 Zod 驗證。
+- **禁止直接讀取**：嚴禁直接使用 `process.env`，必須使用匯出的 `env` 物件。
 
-### 禁止使用
-- ❌ Pages Router (必須使用 App Router)
-- ❌ JavaScript (必須使用 TypeScript)
-- ❌ CSS Modules (必須使用 Tailwind CSS)
-- ❌ PropTypes (必須使用 TypeScript + Zod)
+## 規則 6：圖片處理與 UUID 命名
+
+- **極致壓縮**：圖片上傳前需經 `image-compression.ts` 壓縮至 500KB 以下，優先轉為 WebP。
+- **路徑與連動**：路徑格式為 `uploads/${tenantId}/${Date.now()}_${uuidv4()}.webp`。圖片存入 R2 後必須在 Firestore 建立記錄。
+
+## 規則 7：動態管理與統一規格
+
+- **分類管理**：實作完整的分類 CRUD 與 `order` 排序邏輯。
+- **API 規格**：回傳格式統一為 `{ success: boolean, data?: T, error?: string }`。
 
 ---
-
-## 🏗️ 規則 3: 嚴格分層與多租戶架構
-
-### 分層架構
-```
-UI Layer (Components)
-    ↓
-API Route Layer (app/api/*)
-    ↓
-Service Layer (lib/services/*)
-    ↓
-Repository Layer (lib/repositories/*)
-    ↓
-Firestore
-```
-
-### 多租戶支援
-**所有資料表必須包含 `tenantId` 或 `ownerId` 欄位**
-
-```typescript
-// ✅ 正確的 Schema
-export const portfolioItemSchema = z.object({
-  id: z.string().optional(),
-  tenantId: z.string().optional(), // 多租戶支援
-  imageUrl: z.string().url(),
-  categoryName: z.string(),
-  // ...其他欄位
-});
-
-// ✅ 正確的 Firestore 查詢
-const q = query(
-  collection(db, "portfolio_items"),
-  where("tenantId", "==", currentTenantId), // 必須過濾 tenantId
-  orderBy("createdAt", "desc")
-);
-```
-
-### 未來擴展性
-- 預留多使用者獨立管理功能
-- 每個租戶的資料完全隔離
-- 支援未來的 SaaS 模式
-
----
-
-## 📊 規則 4: Firestore 索引強制化
-
-### 索引規則
-**只要涉及 `orderBy` 與 `where` 的複合查詢,必須建立索引**
-
-### 索引管理方式
-1. **優先使用 `firestore.indexes.json`** (版本控制)
-2. 次要使用 Firebase Console (緊急情況)
-
-### 索引檔案範例
-```json
-{
-  "indexes": [
-    {
-      "collectionGroup": "portfolio_items",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "tenantId", "order": "ASCENDING" },
-        { "fieldPath": "categoryName", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "portfolio_items",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "tenantId", "order": "ASCENDING" },
-        { "fieldPath": "tags", "arrayConfig": "CONTAINS" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    }
-  ]
-}
-```
-
-### 部署索引
-```bash
-firebase deploy --only firestore:indexes
-```
-
----
-
-## 🔐 規則 5: Zod 集中式環境驗證
-
-### 環境變數管理
-**所有敏感金鑰必須在 `src/lib/env.ts` 透過 Zod 驗證**
-
-### 實作範例
-```typescript
-// src/lib/env.ts
-import { z } from "zod";
-
-const envSchema = z.object({
-  // Firebase
-  NEXT_PUBLIC_FIREBASE_API_KEY: z.string().min(1),
-  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: z.string().min(1),
-  NEXT_PUBLIC_FIREBASE_PROJECT_ID: z.string().min(1),
-  
-  // Firebase Admin
-  FIREBASE_PROJECT_ID: z.string().min(1),
-  FIREBASE_CLIENT_EMAIL: z.string().email(),
-  FIREBASE_PRIVATE_KEY: z.string().min(1),
-  
-  // Cloudflare R2
-  R2_ACCOUNT_ID: z.string().min(1),
-  R2_ACCESS_KEY_ID: z.string().min(1),
-  R2_SECRET_ACCESS_KEY: z.string().min(1),
-  R2_BUCKET_NAME: z.string().min(1),
-  R2_PUBLIC_DOMAIN: z.string().url(),
-});
-
-export const env = envSchema.parse(process.env);
-```
-
-### 使用方式
-```typescript
-// ✅ 正確
-import { env } from "@/lib/env";
-const apiKey = env.NEXT_PUBLIC_FIREBASE_API_KEY;
-
-// ❌ 錯誤
-const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
-```
-
----
-
-## 🖼️ 規則 6: 圖片處理與 UUID 命名
-
-### 圖片壓縮
-**所有上傳圖片必須先經過壓縮**
-
-```typescript
-// lib/image-compression.ts
-import imageCompression from "browser-image-compression";
-
-export async function compressImage(file: File): Promise<File> {
-  const options = {
-    maxSizeMB: 0.5,          // 壓縮至 500KB 以下
-    maxWidthOrHeight: 1920,  // 最大寬度或高度
-    useWebWorker: true,
-    fileType: "image/webp",  // 優先使用 WebP
-  };
-  
-  try {
-    const compressedFile = await imageCompression(file, options);
-    return compressedFile;
-  } catch (error) {
-    console.error("圖片壓縮失敗:", error);
-    return file;
-  }
-}
-```
-
-### UUID 命名
-**檔案命名一律使用 UUID**
-
-```typescript
-import { v4 as uuidv4 } from "uuid";
-
-// ✅ 正確
-const filename = `uploads/${Date.now()}_${uuidv4()}_${safeName}`;
-
-// ❌ 錯誤 (洩漏原始檔名)
-const filename = `uploads/${originalFileName}`;
-```
-
-### 優點
-- 避免檔名衝突
-- 防止洩漏原始資訊
-- 統一命名規範
-
----
-
-## 🏷️ 規則 7: 動態分類管理系統
-
-### 完整 CRUD 介面
-分類標籤必須實作完整的管理功能:
-
-- ✅ **Create**: 新增分類
-- ✅ **Read**: 讀取分類列表
-- ✅ **Update**: 修改分類名稱、順序
-- ✅ **Delete**: 刪除分類
-
-### 分類排序
-```typescript
-// Schema 必須包含 order 欄位
-export const categorySchema = z.object({
-  id: z.string().optional(),
-  tenantId: z.string().optional(),
-  name: z.string().min(1),
-  order: z.number().int().min(0), // 排序欄位
-  createdAt: z.any().optional(),
-});
-```
-
-### 拖曳排序
-使用 `@hello-pangea/dnd` 實作拖曳排序功能
-
----
-
-## 📡 規則 8: 統一 API 回傳規格
-
-### 標準回傳格式
-```typescript
-interface ApiResponse<T = any> {
-  success: boolean;
-  data?: T;
-  error?: string;
-}
-```
-
-### 實作範例
-```typescript
-// ✅ 成功回傳
-return NextResponse.json({
-  success: true,
-  data: { id: "123", url: "https://..." }
-});
-
-// ✅ 錯誤回傳
-return NextResponse.json({
-  success: false,
-  error: "上傳失敗:檔案過大"
-}, { status: 400 });
-```
-
-### 前端處理
-```typescript
-const res = await fetch("/api/upload", { method: "POST", body: formData });
-const result = await res.json();
-
-if (result.success) {
-  console.log("成功:", result.data);
-} else {
-  console.error("錯誤:", result.error);
-}
-```
-
----
-
-## 🎨 規則 9: shadcn/ui 藝廊風格
-
-### UI 設計原則
-- **簡約**: 避免過度裝飾
-- **質感**: 使用細膩的陰影和過渡效果
-- **藝廊感**: 突出作品本身,UI 退居背景
-
-### 色彩規範
-```css
-/* 主色調 */
---background: #F8F7F3;      /* 米白色背景 */
---foreground: #1A1A1A;      /* 深灰色文字 */
---accent: #E5E5E5;          /* 淺灰色強調 */
-
-/* 互動色 */
---hover: rgba(0,0,0,0.05);  /* 懸停效果 */
---border: rgba(0,0,0,0.1);  /* 邊框顏色 */
-```
-
-### 元件使用
-- 優先使用 `lucide-react` 圖示
-- 使用 `clsx` 管理條件樣式
-- 使用 Tailwind CSS 工具類別
-
----
-
-## 🚀 規則 10: 本地開發與部署節流策略
-
-### 部署限制
-- Vercel 每日部署限制: **100 次**
-- 必須在本地環境測試無誤後才部署
-
-### Git Push 流程
-```bash
-# 1. 本地測試
-npm run dev
-# 測試所有功能
-
-# 2. 建置測試
-npm run build
-# 確認沒有錯誤
-
-# 3. 詢問是否推送
-# AI 必須詢問:「本地測試已完成,是否要推送到 Git?」
-
-# 4. 使用者確認後才執行
-git add .
-git commit -m "功能描述"
-git push
-```
-
-### AI 行為規範
-- ❌ 禁止自動執行 `git push`
-- ✅ 必須先詢問使用者
-- ✅ 提醒使用者檢查部署次數
-
----
-
-## 📋 開發檢查清單
-
-### 每次開發前
-- [ ] 確認使用繁體中文註解
-- [ ] 檢查是否需要新增 Firestore 索引
-- [ ] 確認 Schema 包含 `tenantId`
-- [ ] 圖片上傳使用 UUID 命名
-
-### 每次提交前
-- [ ] 執行 `npm run build` 確認無錯誤
-- [ ] 檢查 TypeScript 錯誤
-- [ ] 測試所有修改的功能
-- [ ] 確認 API 回傳格式統一
-- [ ] 詢問使用者是否推送
-
-### 部署前
-- [ ] 檢查環境變數是否完整
-- [ ] 確認 Firestore Security Rules
-- [ ] 測試圖片上傳和壓縮
-- [ ] 檢查動態年份顯示
-
----
-
-## 🎯 專案特定規範
-
-### 檔案結構
-```
-src/
-├── app/              # Next.js App Router
-│   ├── api/         # API Routes
-│   ├── page.tsx     # 首頁
-│   └── layout.tsx   # 根布局
-├── components/       # React 元件
-├── lib/             # 工具函式
-│   ├── env.ts       # 環境變數驗證
-│   ├── schema.ts    # Zod Schemas
-│   ├── firebase.ts  # Firebase 配置
-│   └── r2.ts        # R2 配置
-└── types/           # TypeScript 型別定義
-```
-
-### 命名規範
-- **元件**: PascalCase (例: `AutoForm.tsx`)
-- **工具函式**: camelCase (例: `compressImage`)
-- **常數**: UPPER_SNAKE_CASE (例: `R2_BUCKET_NAME`)
-- **型別/介面**: PascalCase (例: `PortfolioItem`)
-
----
-
-## ⚠️ 嚴格禁止事項
-
-1. ❌ 使用英文註解或錯誤訊息
-2. ❌ 硬編碼年份
-3. ❌ 直接使用 `process.env`
-4. ❌ 未壓縮直接上傳圖片
-5. ❌ 使用原始檔名上傳
-6. ❌ 缺少 `tenantId` 欄位
-7. ❌ 複合查詢未建立索引
-8. ❌ API 回傳格式不統一
-9. ❌ 自動執行 `git push`
-10. ❌ 使用 Pages Router
-
----
-
-## 📚 參考資源
-
-- [Next.js 文件](https://nextjs.org/docs)
-- [Firebase 文件](https://firebase.google.com/docs)
-- [Zod 文件](https://zod.dev)
-- [Tailwind CSS 文件](https://tailwindcss.com/docs)
-- [Lucide Icons](https://lucide.dev)
-
----
-
-**最後更新**: 2026-02-12
-**版本**: 1.0.0
+*最後更新：2026-02-18*

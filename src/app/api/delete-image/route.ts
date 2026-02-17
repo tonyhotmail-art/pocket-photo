@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { r2Client, R2_BUCKET_NAME, R2_PUBLIC_DOMAIN } from "@/lib/r2";
+import { r2Client, deleteFromR2 } from "@/lib/r2";
+import { env } from "@/lib/env";
 import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { verifyAdminAuth } from "@/lib/auth-middleware";
 
@@ -10,6 +11,13 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
             { error: authResult.error },
             { status: authResult.status }
+        );
+    }
+
+    if (!env.R2_BUCKET_NAME) {
+        return NextResponse.json(
+            { success: false, error: "R2_BUCKET_NAME not configured" },
+            { status: 500 }
         );
     }
 
@@ -38,7 +46,7 @@ export async function POST(request: NextRequest) {
         console.log(`[Delete Image API] Deleting from R2: ${key}`);
 
         const command = new DeleteObjectCommand({
-            Bucket: R2_BUCKET_NAME,
+            Bucket: env.R2_BUCKET_NAME,
             Key: key,
         });
 

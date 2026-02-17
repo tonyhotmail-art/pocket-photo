@@ -9,7 +9,7 @@ import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, where,
 import { accessConfig } from "@/lib/config";
 import { compressImage } from "@/lib/image-compression";
 import { calculateImageHash } from "@/lib/hash";
-import { Loader2, UploadCloud, X, CheckCircle, Tag, Cloud } from "lucide-react";
+import { Loader2, UploadCloud, X, Tag, Cloud } from "lucide-react";
 import { clsx } from "clsx";
 import GoogleDrivePicker from "@/components/GoogleDrivePicker";
 import GooglePhotosPicker, { checkPendingPhotosPickerSession } from "@/components/GooglePhotosPicker";
@@ -57,7 +57,11 @@ export default function AutoForm() {
     }, []);
 
     useEffect(() => {
-        const q = query(collection(db, "categories"), orderBy("order", "asc"));
+        const q = query(
+            collection(db, "categories"),
+            where("tenantId", "==", accessConfig.tenantId || "default"),
+            orderBy("order", "asc")
+        );
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const cats = snapshot.docs.map(doc => ({
                 id: doc.id,
@@ -125,6 +129,7 @@ export default function AutoForm() {
                 } else {
                     const q = query(
                         collection(db, "portfolio_items"),
+                        where("tenantId", "==", accessConfig.tenantId || "default"),
                         where("contentHash", "==", contentHash),
                         limit(1)
                     );
@@ -192,6 +197,7 @@ export default function AutoForm() {
                 // 檢查重複
                 const q = query(
                     collection(db, "portfolio_items"),
+                    where("tenantId", "==", accessConfig.tenantId || "default"),
                     where("contentHash", "==", contentHash),
                     limit(1)
                 );
@@ -252,10 +258,22 @@ export default function AutoForm() {
 
         setUploading(true);
         try {
+            // 獲取目前分類的順序權重
+            const categoryOrder = categories.find(c => c.name === values.categoryName)?.order ?? 0;
+            const tenantId = accessConfig.tenantId || "default";
+
             // 批次處理上傳
             for (const file of selectedFiles) {
                 const formData = new FormData();
                 formData.append("file", file);
+                // 傳遞 Metadata
+                formData.append("title", values.title || "");
+                formData.append("description", values.description || "");
+                formData.append("categoryName", values.categoryName);
+                formData.append("categoryOrder", categoryOrder.toString());
+                formData.append("tags", JSON.stringify(currentTags)); // 陣列需轉字串傳遞
+                formData.append("contentHash", (file as any).contentHash || "");
+                formData.append("tenantId", tenantId); // 強制傳遞 tenantId
 
                 const uploadRes = await authenticatedFetch("/api/upload", {
                     method: "POST",
@@ -268,25 +286,14 @@ export default function AutoForm() {
                     throw new Error(result.error || "上傳失敗");
                 }
 
-                const url = result.data.url;
-
-                // 獲取目前分類的順序權重
-                const categoryOrder = categories.find(c => c.name === values.categoryName)?.order ?? 0;
-
-                // 儲存至 Firestore
-                await addDoc(collection(db, "portfolio_items"), {
-                    ...values,
-                    imageUrl: url,
-                    categoryOrder,
-                    contentHash: (file as any).contentHash, // 補回 Hash 以供查重
-                    createdAt: serverTimestamp(),
-                    tenantId: accessConfig.tenantId || "default",
-                });
+                // 成功後，不需要在前端寫入 Firestore，因為後端 Service 已處理
+                // 但為了 UI 體驗，我們可以在這裡做樂觀更新，或者依賴 onSnapshot / portfolio-updated 事件
             }
 
             reset();
             setPreviews([]);
             setSelectedFiles([]);
+            setTagsInput("");
             if (fileInputRef.current) fileInputRef.current.value = "";
 
             // 發送事件通知 WorkManager 刷新資料

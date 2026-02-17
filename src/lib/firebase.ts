@@ -1,13 +1,4 @@
-
-
-// Start of polyfill
-import "xhr2";
-// @ts-ignore
-if (typeof window === "undefined" && typeof global.XMLHttpRequest === "undefined") {
-    // @ts-ignore
-    global.XMLHttpRequest = require("xhr2");
-}
-// End of polyfill
+// Firebase Client SDK 初始化
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";

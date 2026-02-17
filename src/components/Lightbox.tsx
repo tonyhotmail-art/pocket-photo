@@ -34,6 +34,7 @@ export default function Lightbox({
     categories = [],
     onItemUpdate
 }: LightboxProps) {
+    const [activeItem, setActiveItem] = useState<PortfolioItem | null>(initialItem);
     const [currentIndex, setCurrentIndex] = useState(-1);
     const [direction, setDirection] = useState<"left" | "right" | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -44,26 +45,34 @@ export default function Lightbox({
     const [showShareMenu, setShowShareMenu] = useState(false);
     const [isCopied, setIsCopied] = useState(false);
 
-    // 當開啟時，尋找初始項目的索引
+    // 當開啟或項目清單變動時，同步狀態
     useEffect(() => {
-        if (initialItem && initialItem.id) {
-            // 只在 initialItem 改變時才重新搜尋索引
-            if (initialItem.id !== initialItemId.current) {
-                const index = items.findIndex(i => i.id === initialItem.id);
-                setCurrentIndex(index);
-                setDirection(null);
-                initialItemId.current = initialItem.id;
-                setShowShareMenu(false); // 切換圖片時關閉分享選單
-            }
-        } else {
+        if (!initialItem?.id) {
+            setActiveItem(null);
             setCurrentIndex(-1);
             initialItemId.current = null;
-            setShowShareMenu(false);
+            return;
         }
-    }, [initialItem]);
 
+        // 尋找目前顯示的照片在最新清單中的索引
+        // 優先使用 activeItem (若已經開啟)，否則使用 initialItem
+        const currentTargetId = activeItem?.id || initialItem.id;
+        const index = items.findIndex(i => i.id === currentTargetId);
 
-    const activeItem = currentIndex >= 0 ? items[currentIndex] : null;
+        // 更新索引
+        setCurrentIndex(index);
+
+        // 如果是外部傳入的新項目 (例如點擊了別張照片)，更新 activeItem
+        if (initialItem.id !== initialItemId.current) {
+            setActiveItem(initialItem);
+            initialItemId.current = initialItem.id;
+            setShowShareMenu(false);
+            setDirection(null);
+        } else if (currentTargetId === initialItem.id && initialItem !== activeItem) {
+            // 如果是內容變動 (ID 相同但內容不同，例如分類更新)，也要同步 activeItem
+            setActiveItem(initialItem);
+        }
+    }, [initialItem, items]);
 
     const handleDelete = async (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -90,15 +99,16 @@ export default function Lightbox({
                 onClose();
             } else {
                 // 計算刪除後應該顯示的索引
-                // 如果刪除的是最後一張,往前移一位
-                // 否則保持當前索引(因為陣列會自動縮短,當前索引會指向下一張)
                 const newIndex = currentIndex >= items.length - 1
                     ? Math.max(0, currentIndex - 1)
                     : currentIndex;
 
-                // 設定新的索引
+                // 設定新的索引 (useEffect 會自動同步 activeItem)
                 setCurrentIndex(newIndex);
-                setDirection(null); // 不要有滑動動畫,避免混亂
+                if (items[newIndex]) {
+                    setActiveItem(items[newIndex]);
+                }
+                setDirection(null);
             }
         } catch (error) {
             console.error("Delete error:", error);
@@ -147,16 +157,18 @@ export default function Lightbox({
 
     const handlePrev = useCallback((e?: React.MouseEvent) => {
         e?.stopPropagation();
+        if (items.length === 0) return;
+
         setDirection("left");
-        if (currentIndex > 0) {
-            setCurrentIndex(prev => prev - 1);
-        } else {
-            setCurrentIndex(items.length - 1);
-        }
-    }, [currentIndex, items.length]);
+        const nextIndex = currentIndex > 0 ? currentIndex - 1 : items.length - 1;
+        setCurrentIndex(nextIndex);
+        setActiveItem(items[nextIndex]);
+    }, [currentIndex, items]);
 
     const handleNext = useCallback((e?: React.MouseEvent) => {
         e?.stopPropagation();
+        if (items.length === 0) return;
+
         setDirection("right");
 
         // 如果快看完（剩 5 張），觸發續載
@@ -165,20 +177,20 @@ export default function Lightbox({
         }
 
         if (currentIndex < items.length - 1) {
-            setCurrentIndex(prev => prev + 1);
+            const nextIndex = currentIndex + 1;
+            setCurrentIndex(nextIndex);
+            setActiveItem(items[nextIndex]);
         } else if (hasMore) {
-            // 到達末端但還有更多數據，觸發加載
             onLoadMore?.();
         } else {
-            // 真正抵達全域末端，通知父層組件處理（例如切換分類）
             if (onReachEnd) {
                 onReachEnd();
             } else {
-                // 預設行為：循環回第一張
                 setCurrentIndex(0);
+                setActiveItem(items[0]);
             }
         }
-    }, [currentIndex, items.length, hasMore, onLoadMore, onReachEnd]);
+    }, [currentIndex, items, hasMore, onLoadMore, onReachEnd]);
 
     // 鍵盤支援
     useEffect(() => {
@@ -387,15 +399,21 @@ export default function Lightbox({
                     <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/70 to-transparent z-0 h-[150%] translate-y-[-30%]" />
 
                     <div className="relative z-10 p-6 md:p-10 text-white flex flex-col items-start font-serif pointer-events-auto">
-                        <button
-                            onClick={() => {
-                                onCategoryClick?.(activeItem.categoryName);
-                                onClose();
-                            }}
-                            className="text-[10px] uppercase tracking-[0.4em] text-white/50 mb-3 hover:text-white transition-colors text-left"
-                        >
-                            {activeItem.categoryName}
-                        </button>
+                        {isAdmin ? (
+                            <div className="text-[10px] uppercase tracking-[0.4em] text-white/50 mb-3 text-left">
+                                {activeItem.categoryName}
+                            </div>
+                        ) : (
+                            <button
+                                onClick={() => {
+                                    onCategoryClick?.(activeItem.categoryName);
+                                    onClose();
+                                }}
+                                className="text-[10px] uppercase tracking-[0.4em] text-white/50 mb-3 hover:text-white transition-colors text-left"
+                            >
+                                {activeItem.categoryName}
+                            </button>
+                        )}
 
                         {/* 管理員分類切換區 */}
                         {isAdmin && categories.length > 0 && (

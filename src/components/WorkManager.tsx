@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react";
 import NextImage from "next/image";
 import { db } from "@/lib/firebase";
-import { collection, query, orderBy, onSnapshot, where, getDocs, limit, startAfter, getCountFromServer, QueryConstraint, doc, getDoc, deleteDoc } from "firebase/firestore";
-import { PortfolioItem } from "@/lib/schema";
-import { Loader2, Trash2, Search, Filter, Image as ImageIcon, ExternalLink } from "lucide-react";
+import { collection, query, where, getDocs, getCountFromServer, orderBy } from "firebase/firestore";
+import { PortfolioItem, Category } from "@/lib/schema";
+import { accessConfig } from "@/lib/config";
+import { Loader2, Trash2, Search, Image as ImageIcon, ExternalLink, Maximize2 } from "lucide-react";
 import clsx from "clsx";
 
 import Lightbox from "./Lightbox";
@@ -18,7 +19,7 @@ export default function WorkManager() {
     const [isBatchDeleting, setIsBatchDeleting] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("all");
-    const [categories, setCategories] = useState<string[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
     // 分頁相關狀態
@@ -59,17 +60,20 @@ export default function WorkManager() {
             );
 
             if (!response.ok) {
-                throw new Error("Failed to fetch page");
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.details || errorData.error || "Failed to fetch page");
             }
 
-            const data = await response.json();
+            const result = await response.json();
 
-            if (data.error) {
-                console.error("Pagination error:", data.error);
-                loadPage(1);
+            if (!result.success) {
+                console.error("Pagination error:", result.error);
+                // Redirect to first page if error (e.g., page out of range)
+                if (page !== 1) loadPage(1);
                 return;
             }
 
+            const data = result.data;
             setItems(data.items);
             setHasNextPage(data.hasNextPage);
             setHasPrevPage(data.hasPrevPage);
@@ -83,19 +87,28 @@ export default function WorkManager() {
 
     const loadCategoryCounts = async () => {
         try {
-            // 載入所有分類
-            const allQ = query(collection(db, "portfolio_items"));
-            const allSnapshot = await getDocs(allQ);
-            const allCats = Array.from(new Set(
-                allSnapshot.docs.map(doc => doc.data().categoryName as string)
-            ));
+            const tenantId = accessConfig.tenantId || "default";
+            // 載入所有分類 (從 categories collection 讀取，確保順序正確)
+            const catsQ = query(
+                collection(db, "categories"),
+                where("tenantId", "==", tenantId),
+                orderBy("order", "asc")
+            );
+            const catsSnapshot = await getDocs(catsQ);
+            const allCats = catsSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            })) as Category[];
             setCategories(allCats);
 
             // 計算每個分類的數量
             const counts: Record<string, number> = {};
 
             // 計算總數
-            const totalQ = query(collection(db, "portfolio_items"));
+            const totalQ = query(
+                collection(db, "portfolio_items"),
+                where("tenantId", "==", tenantId)
+            );
             const totalCount = await getCountFromServer(totalQ);
             counts['all'] = totalCount.data().count;
 
@@ -103,10 +116,11 @@ export default function WorkManager() {
             for (const cat of allCats) {
                 const catQ = query(
                     collection(db, "portfolio_items"),
-                    where("categoryName", "==", cat)
+                    where("tenantId", "==", tenantId),
+                    where("categoryName", "==", cat.name)
                 );
                 const catCount = await getCountFromServer(catQ);
-                counts[cat] = catCount.data().count;
+                counts[cat.name] = catCount.data().count;
             }
 
             setCategoryCounts(counts);
@@ -256,16 +270,16 @@ export default function WorkManager() {
                 </button>
                 {categories.map(cat => (
                     <button
-                        key={cat}
-                        onClick={() => setSelectedCategory(cat)}
+                        key={cat.id || cat.name}
+                        onClick={() => setSelectedCategory(cat.name)}
                         className={clsx(
                             "px-4 py-2 rounded-lg text-sm font-semibold transition-all",
-                            selectedCategory === cat
+                            selectedCategory === cat.name
                                 ? "bg-gray-800 text-white shadow-md"
                                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                         )}
                     >
-                        {cat} {categoryCounts[cat] !== undefined && `(${categoryCounts[cat]})`}
+                        {cat.name} {categoryCounts[cat.name] !== undefined && `(${categoryCounts[cat.name]})`}
                     </button>
                 ))}
             </div>
@@ -375,20 +389,7 @@ export default function WorkManager() {
                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 pointer-events-none">
                                             {/* 遮罩，讓點擊優先觸發 selection */}
                                         </div>
-                                        <div className="absolute top-3 right-3 z-20" onClick={(e) => e.stopPropagation()}>
-                                            <div className="absolute top-3 right-3 z-20" onClick={(e) => e.stopPropagation()}>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setSelectedItem(item);
-                                                    }}
-                                                    className="p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-colors flex items-center justify-center cursor-pointer hover:scale-110 active:scale-95"
-                                                    title="放大預覽"
-                                                >
-                                                    <ExternalLink size={16} />
-                                                </button>
-                                            </div>
-                                        </div>
+
                                         <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-black/60 backdrop-blur-md text-white text-[9px] uppercase tracking-widest rounded-sm">
                                             {item.categoryName}
                                         </div>
@@ -411,20 +412,32 @@ export default function WorkManager() {
                                                 {item.tags.length > 2 && <span className="text-[9px] text-gray-300">...</span>}
                                             </div>
 
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation(); // 防止觸發卡片選取
-                                                    item.id && handleDelete(item.id);
-                                                }}
-                                                disabled={deletingId === item.id}
-                                                className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                                            >
-                                                {deletingId === item.id ? (
-                                                    <Loader2 size={16} className="animate-spin" />
-                                                ) : (
-                                                    <Trash2 size={16} />
-                                                )}
-                                            </button>
+                                            <div className="flex items-center gap-1">
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setSelectedItem(item);
+                                                    }}
+                                                    className="p-2 text-gray-300 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                                                    title="預覽照片 (開啟燈箱)"
+                                                >
+                                                    <Maximize2 size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation(); // 防止觸發卡片選取
+                                                        item.id && handleDelete(item.id);
+                                                    }}
+                                                    disabled={deletingId === item.id}
+                                                    className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                                >
+                                                    {deletingId === item.id ? (
+                                                        <Loader2 size={16} className="animate-spin" />
+                                                    ) : (
+                                                        <Trash2 size={16} />
+                                                    )}
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -532,7 +545,7 @@ export default function WorkManager() {
                         setItems(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
                         setSelectedItem(updatedItem);
                     }}
-                // categories={categories} // TODO: 若需要在 Lightbox 內更改分類，需傳入完整的 Category 物件陣列
+                    categories={categories}
                 />
             )}
         </div >

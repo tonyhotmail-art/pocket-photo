@@ -24,7 +24,7 @@ interface AdminRecord {
     photoURL?: string;
     phone?: string;
     uid?: string;
-    createdAt?: any;
+    createdAt?: { seconds: number; nanoseconds: number };
 }
 
 export default function AdminManagement() {
@@ -56,9 +56,9 @@ export default function AdminManagement() {
         e.preventDefault();
         setSubmitting(true);
         try {
-            const data: any = {
+            const data: Partial<AdminRecord> = {
                 type,
-                createdAt: serverTimestamp(),
+                createdAt: serverTimestamp() as any, // serverTimestamp 在寫入時需轉型以符合 Partial
             };
 
             if (type === "google") {
@@ -85,8 +85,9 @@ export default function AdminManagement() {
             setAccountName("");
             setPhone("");
             setIsAdding(false);
-        } catch (error: any) {
-            alert(error.message || "新增失敗");
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "新增失敗";
+            alert(message);
         } finally {
             setSubmitting(false);
         }
@@ -295,7 +296,9 @@ export default function AdminManagement() {
                                         )}
                                     </td>
                                     <td className="px-6 py-4 text-[11px] text-gray-400">
-                                        {admin.createdAt?.toDate ? admin.createdAt.toDate().toLocaleDateString() : '---'}
+                                        <div className="flex items-center gap-1.5 text-[10px] text-gray-400 mt-1 cursor-default">
+                                            <span>加入於 {(admin.createdAt as any)?.toDate?.()?.toLocaleDateString() || (admin.createdAt as any)?.toDate?.()?.toLocaleDateString() || "近期"}</span>
+                                        </div>
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <button

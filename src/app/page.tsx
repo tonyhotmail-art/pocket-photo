@@ -14,6 +14,7 @@ import WorkManager from "@/components/WorkManager";
 import AdminManagement from "@/components/AdminManagement";
 import LoginModal from "@/components/LoginModal";
 import { useAuth } from "@/components/AuthContext";
+import { accessConfig } from "@/lib/config";
 import { Settings, Image as ImageIcon, Loader2, X, LogOut, MessageCircle, Share2 } from "lucide-react";
 import { clsx } from "clsx";
 import { useSearchParams } from "next/navigation";
@@ -84,6 +85,7 @@ function HomeContent() {
     let q = query(
       collection(db, "categories"),
       where("visible", "==", true),
+      where("tenantId", "==", accessConfig.tenantId || "default"),
       orderBy("order", "asc")
     );
 
@@ -92,6 +94,7 @@ function HomeContent() {
       q = query(
         collection(db, "categories"),
         where("visible", "==", true),
+        where("tenantId", "==", accessConfig.tenantId || "default"),
         where("name", "!=", "待分類照片"),
         orderBy("name"), // 必須在首位 (不等於查詢的欄位)
         orderBy("order", "asc")
@@ -116,6 +119,7 @@ function HomeContent() {
     if (selectedTag) {
       q = query(
         collection(db, "portfolio_items"),
+        where("tenantId", "==", accessConfig.tenantId || "default"),
         where("tags", "array-contains", selectedTag),
         orderBy("categoryOrder", "asc"),
         orderBy("createdAt", "desc"),
@@ -124,6 +128,7 @@ function HomeContent() {
     } else if (selectedCategoryName !== "all") {
       q = query(
         collection(db, "portfolio_items"),
+        where("tenantId", "==", accessConfig.tenantId || "default"),
         where("categoryName", "==", selectedCategoryName),
         orderBy("categoryOrder", "asc"),
         orderBy("createdAt", "desc"),
@@ -134,6 +139,7 @@ function HomeContent() {
       if (isAdmin) {
         q = query(
           collection(db, "portfolio_items"),
+          where("tenantId", "==", accessConfig.tenantId || "default"),
           orderBy("categoryOrder", "asc"),
           orderBy("createdAt", "desc"),
           limit(displayLimit + 1)
@@ -142,6 +148,7 @@ function HomeContent() {
         // 非管理員：由資料庫層級排除「待分類照片」
         q = query(
           collection(db, "portfolio_items"),
+          where("tenantId", "==", accessConfig.tenantId || "default"),
           where("categoryName", "!=", "待分類照片"),
           orderBy("categoryName"), // 必須在首位
           orderBy("categoryOrder", "asc"),
@@ -173,13 +180,17 @@ function HomeContent() {
     return () => unsubscribe();
   }, [selectedCategoryName, selectedTag, displayLimit, isAdmin]);
 
+  // 移除獨立的 setDisplayLimit useEffect，改為在 handleCategoryChange 內合併處理
+  /* 
   useEffect(() => {
     setDisplayLimit(20);
-  }, [selectedCategoryName, selectedTag]);
+  }, [selectedCategoryName, selectedTag]); 
+  */
 
   const handleCategoryChange = (name: string) => {
     setSelectedCategoryName(name);
     setSelectedTag(null);
+    setDisplayLimit(20); // 直接在此重置分頁限額，避免觸發額外的 useEffect
     autoNavStartIndex.current = -1;
     shouldOpenFirstItem.current = false;
   };

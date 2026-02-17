@@ -6,6 +6,7 @@ export interface CompressionOptions {
     maxWidthOrHeight?: number;
     useWebWorker?: boolean;
     initialQuality?: number;
+    fileType?: string; // Added to support WebP conversion
 }
 
 /**
@@ -18,10 +19,11 @@ export interface CompressionOptions {
 export async function compressImage(file: File, customOptions?: CompressionOptions): Promise<File> {
     // Default options from reference code
     const defaultOptions: CompressionOptions = {
-        maxSizeMB: 1,           // Max size 1MB
-        maxWidthOrHeight: 1920, // Max dimension 1920px (Full HD)
-        useWebWorker: true,     // Use web worker for performance
-        initialQuality: 0.8     // Good quality
+        maxSizeMB: 0.5,           // Max size 0.5MB (500KB) - Rule 6
+        maxWidthOrHeight: 1920,   // Max dimension 1920px (Full HD)
+        useWebWorker: true,       // Use web worker for performance
+        fileType: "image/webp",   // Force WebP format - Rule 6
+        initialQuality: 0.8       // Good quality
     };
 
     const options = { ...defaultOptions, ...customOptions };
@@ -29,11 +31,11 @@ export async function compressImage(file: File, customOptions?: CompressionOptio
     try {
         console.log(`[ImageCompression] Original size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
         const compressedFile = await imageCompression(file, options);
-        console.log(`[ImageCompression] Compressed size: ${(compressedFile.size / 1024 / 1024).toFixed(2)} MB`);
+        console.log(`[ImageCompression] Compressed size: ${(compressedFile.size / 1024 / 1024).toFixed(2)} MB, Type: ${compressedFile.type}`);
         return compressedFile;
     } catch (error) {
         console.error("[ImageCompression] Error:", error);
-        // If compression fails, return the original file
+        // If compression fails, return the original file but warn
         return file;
     }
 }

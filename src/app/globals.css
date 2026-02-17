@@ -107,6 +107,31 @@ html.lenis body {
   /* 懸停時幾乎接近黑色 */
 }
 
+/* 側邊欄專用細捲軸 - 保持視覺極簡 */
+.sidebar-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #e5e7eb transparent;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 3px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 20px;
+  transition: background-color 0.3s;
+}
+
+/* 只有在 hover 容器時才顯示捲軸顏色，平時隱藏 */
+.sidebar-scrollbar:hover::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+}
+
 /* 圖片版權保護 */
 img {
   -webkit-touch-callout: none;
