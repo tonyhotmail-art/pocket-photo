@@ -20,6 +20,10 @@
 # production
 /build
 
+# exclude other nested projects
+pocket-booking/
+口袋預約/
+
 # misc
 .DS_Store
 *.pem
