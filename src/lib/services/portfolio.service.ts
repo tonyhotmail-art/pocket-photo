@@ -23,8 +23,9 @@ export class PortfolioService {
             tags: string[];
             contentHash: string;
             description?: string;
-            width?: number; // Make optional as it might be auto-calculated
-            height?: number; // Make optional
+            width?: number;
+            height?: number;
+            photoDate?: string; // EXIF 拍攝時間 (ISO 字串格式)
         },
         tenantId: string
     ): Promise<string> {
@@ -38,16 +39,17 @@ export class PortfolioService {
             categoryName: metadata.categoryName,
             categoryOrder: metadata.categoryOrder,
             tags: metadata.tags,
-            width: metadata.width || 0, // Default to 0 if not provided
+            width: metadata.width || 0,
             height: metadata.height || 0,
             contentHash: metadata.contentHash,
             description: metadata.description || "",
             tenantId,
             visible: true,
+            // 若有 EXIF 拍攝時間則使用，否則以上傳時間作為 fallback
+            photoDate: metadata.photoDate || new Date().toISOString(),
         };
 
         // 3. 驗證 Schema (確保資料正確性)
-        // 注意: id 與 createdAt 由 Firestore 處理，schema 驗證時設為 optional
         portfolioItemSchema.parse(itemData);
 
         // 4. 寫入資料庫

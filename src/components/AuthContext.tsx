@@ -1,165 +1,166 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
-import {
-    onAuthStateChanged,
-    User,
-    signOut,
-    signInWithPopup,
-    setPersistence,
-    browserLocalPersistence
-} from "firebase/auth";
-import { auth, googleProvider, db } from "@/lib/firebase";
-import { collection, query, where, getDocs, updateDoc, doc, serverTimestamp } from "firebase/firestore";
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { useUser, useClerk } from "@clerk/nextjs";
+import { db } from "@/lib/firebase";
+import { collection, query, where, getDocs } from "firebase/firestore";
 
 interface AuthContextType {
-    user: User | null;
     isAdmin: boolean;
+    isAuthenticated: boolean;
     loading: boolean;
-    loginWithGoogle: () => Promise<void>;
     logout: () => Promise<void>;
-    checkAdminStatus: (user: User) => Promise<boolean>;
-    setManuallyAuthorized: (status: boolean) => void;
+    clerkUserId: string | null;
+    userEmail: string | null;
+    userName: string | null;
+    userPhotoUrl: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/**
+ * 超級管理員硬編碼清單（與 Server 端一致）
+ */
+const SUPER_ADMINS = [
+    "tony.hotmail@gmail.com",
+    "tony7777777@gmail.com"
+];
+
+/**
+ * AuthProvider — 雙水管 (Dual-Pipe) 架構
+ *
+ * 水管 A（Clerk Metadata）：讀取 user.publicMetadata.role === 'admin'
+ *   → 不需網路請求，最快
+ * 水管 B（Firestore）：查詢 admins 集合
+ *   → 確認後自動呼叫 /api/admin/sync-role 補水管 A
+ *
+ * 兩管皆接受 OR 邏輯：任一管通則認定為管理員
+ */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const [user, setUser] = useState<User | null>(null);
-    const [isAdminState, setIsAdminState] = useState(false);
-    const [isManuallyAuthorized, setIsManuallyAuthorized] = useState(false);
-    const [loading, setLoading] = useState(true);
+    const { user, isLoaded } = useUser();
+    const { signOut } = useClerk();
+    const [isAdmin, setIsAdmin] = useState(false);
 
-    // 綜合判定是否為管理員
-    const isAdmin = isAdminState || isManuallyAuthorized;
-
-    // 檢查管理員身份 (比對 Firestore 中的 admins 集合)
-    const checkAdminStatus = async (currentUser: User) => {
+    /**
+     * 觸發後端 sync-role API，將管理員標記寫入 Clerk publicMetadata（補水管 A）
+     */
+    const syncRoleToClerk = useCallback(async () => {
         try {
-            // 嘗試透過 UID 查詢 (針對已記錄過的 Google 使用者)
-            const qByUid = query(collection(db, "admins"), where("uid", "==", currentUser.uid));
-            const snapByUid = await getDocs(qByUid);
-            if (!snapByUid.empty) return true;
-
-            // 嘗試透過 Email 查詢 (針對預先授權但尚未登入過的電子郵件)
-            if (currentUser.email) {
-                const qByEmail = query(collection(db, "admins"),
-                    where("type", "==", "google"),
-                    where("email", "==", currentUser.email.toLowerCase())
-                );
-                const snapByEmail = await getDocs(qByEmail);
-                if (!snapByEmail.empty) return true;
-
-                // 預設的高級管理員信箱
-                if (currentUser.email === "tony.hotmail@gmail.com" ||
-                    currentUser.email === "tony7777777@gmail.com") return true;
+            const res = await fetch("/api/admin/sync-role", { method: "POST" });
+            if (res.ok) {
+                console.log("[AuthContext] ✅ Clerk Metadata 同步完成");
             }
-
-            return false;
-        } catch (error) {
-            console.error("Admin check error:", error);
-            return false;
+        } catch (err) {
+            console.error("[AuthContext] Clerk Metadata 同步失敗:", err);
         }
-    };
-
-    // 同步管理員個人資料 (如名稱、UID)
-    const syncAdminProfile = async (currentUser: User) => {
-        try {
-            const adminsRef = collection(db, "admins");
-            if (!currentUser.email) return;
-
-            // 搜尋匹配此 Email 的 Google 類型管理員
-            const q = query(adminsRef,
-                where("type", "==", "google"),
-                where("email", "==", currentUser.email.toLowerCase())
-            );
-            const snap = await getDocs(q);
-
-            for (const adminDoc of snap.docs) {
-                const data = adminDoc.data();
-                // 如果 UID 尚未紀錄，或名稱/頭像與 Google 不一致，則更新
-                if (data.uid !== currentUser.uid ||
-                    data.accountName !== currentUser.displayName ||
-                    data.photoURL !== currentUser.photoURL) {
-                    await updateDoc(doc(db, "admins", adminDoc.id), {
-                        uid: currentUser.uid,
-                        // 優先使用 Google 提供的資訊，若無則保留原樣
-                        accountName: currentUser.displayName || data.accountName || "",
-                        photoURL: currentUser.photoURL || data.photoURL || "",
-                        lastLogin: serverTimestamp()
-                    });
-                }
-            }
-        } catch (error) {
-            console.error("同步管理員資料失敗:", error);
-        }
-    };
-
-    useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-            setUser(currentUser);
-            if (currentUser) {
-                const adminResult = await checkAdminStatus(currentUser);
-                setIsAdminState(adminResult);
-
-                // 如果確認是管理員，且是透過 Google 登入，則同步資料
-                if (adminResult && currentUser.providerData.some(p => p.providerId === 'google.com')) {
-                    syncAdminProfile(currentUser);
-                }
-            } else {
-                setIsAdminState(false);
-            }
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
     }, []);
 
-    const loginWithGoogle = async () => {
-        setLoading(true);
+    /**
+     * 水管 B：查詢 Firestore admins 集合
+     */
+    const checkFirestorePipe = useCallback(async (
+        userId: string,
+        email: string | null | undefined
+    ): Promise<boolean> => {
         try {
-            await setPersistence(auth, browserLocalPersistence);
-            await signInWithPopup(auth, googleProvider);
-        } catch (error: any) {
-            console.error("Login Error:", error);
-            if (error.code === 'auth/popup-blocked') {
-                alert("請允許本網站開啟彈出視窗以進行登入。");
-            } else {
-                alert("登入失敗：" + error.message);
+            // 比對 clerkUserId
+            const snapById = await getDocs(
+                query(collection(db, "admins"), where("clerkUserId", "==", userId))
+            );
+            if (!snapById.empty) return true;
+
+            if (email) {
+                // 比對 Email
+                const snapByEmail = await getDocs(
+                    query(
+                        collection(db, "admins"),
+                        where("email", "==", email.toLowerCase())
+                    )
+                );
+                if (!snapByEmail.empty) return true;
+
+                // 超級管理員清單
+                if (SUPER_ADMINS.includes(email.toLowerCase())) return true;
             }
-        } finally {
-            setLoading(false);
+            return false;
+        } catch (error) {
+            console.error("[AuthContext] Firestore 查詢失敗:", error);
+            return false;
         }
-    };
+    }, []);
+
+    /**
+     * 雙水管判斷主邏輯
+     */
+    const checkAdminStatus = useCallback(async (
+        userId: string,
+        email: string | null | undefined,
+        publicMetadata: Record<string, unknown>
+    ) => {
+        // 水管 A：直接讀取 Clerk publicMetadata（O(1)，無網路請求）
+        const clerkPipeResult = publicMetadata?.role === "admin";
+        if (clerkPipeResult) {
+            console.log("[AuthContext] 🔑 水管A（Clerk Metadata）通過");
+            return true;
+        }
+
+        // 水管 B：Firestore 查詢
+        console.log("[AuthContext] 水管A 未標記，嘗試水管B（Firestore）...");
+        const firestorePipeResult = await checkFirestorePipe(userId, email);
+        if (firestorePipeResult) {
+            console.log("[AuthContext] 🔑 水管B（Firestore）通過，觸發同步補水管A...");
+            // 非同步補水管 A，不阻塞登入流程
+            syncRoleToClerk();
+            return true;
+        }
+
+        console.log("[AuthContext] 兩條水管均未通過");
+        return false;
+    }, [checkFirestorePipe, syncRoleToClerk]);
+
+    // Clerk 使用者狀態變更時，重新確認管理員資格
+    useEffect(() => {
+        if (!isLoaded) return;
+
+        if (user) {
+            const email = user.emailAddresses[0]?.emailAddress;
+            const metadata = (user.publicMetadata ?? {}) as Record<string, unknown>;
+            checkAdminStatus(user.id, email, metadata).then(setIsAdmin);
+        } else {
+            setIsAdmin(false);
+        }
+    }, [user, isLoaded, checkAdminStatus]);
 
     const logout = async () => {
         try {
-            await signOut(auth);
-            setIsManuallyAuthorized(false);
+            await signOut();
+            setIsAdmin(false);
         } catch (error) {
-            console.error("Logout Error:", error);
+            console.error("登出失敗:", error);
         }
     };
 
-    const setManuallyAuthorized = (status: boolean) => {
-        setIsManuallyAuthorized(status);
-    };
+    const email = user?.emailAddresses[0]?.emailAddress ?? null;
 
     return (
         <AuthContext.Provider value={{
-            user,
             isAdmin,
-            loading,
-            loginWithGoogle,
+            isAuthenticated: !!user,
+            loading: !isLoaded,
             logout,
-            checkAdminStatus,
-            setManuallyAuthorized
+            clerkUserId: user?.id ?? null,
+            userEmail: email,
+            userName: user?.fullName ?? user?.firstName ?? null,
+            userPhotoUrl: user?.imageUrl ?? null,
         }}>
             {children}
         </AuthContext.Provider>
     );
 }
 
+/**
+ * useAuth Hook
+ */
 export function useAuth() {
     const context = useContext(AuthContext);
     if (context === undefined) {

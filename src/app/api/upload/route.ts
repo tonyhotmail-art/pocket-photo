@@ -8,8 +8,8 @@ import { env } from "@/lib/env";
  * 接收 FormData，呼叫 Service 層完成上傳與資料寫入
  */
 export async function POST(request: NextRequest) {
-    // 🔒 驗證身份
-    const authResult = await verifyAdminAuth(request);
+    // 🔒 Clerk 驗證身份（無需傳入 request，從 Clerk Server Context 取得）
+    const authResult = await verifyAdminAuth();
     if (!authResult.success) {
         return NextResponse.json(
             { success: false, error: authResult.error },
@@ -29,6 +29,7 @@ export async function POST(request: NextRequest) {
         const tagsJson = formData.get("tags") as string;
         const tags = tagsJson ? JSON.parse(tagsJson) : [];
         const contentHash = formData.get("contentHash") as string;
+        const photoDate = formData.get("photoDate") as string | null; // EXIF 拍攝時間（選填）
 
         // 優先使用前端傳來的 tenantId，若無則使用系統預設
         const tenantId = (formData.get("tenantId") as string) || env.NEXT_PUBLIC_TENANT_ID;
@@ -52,13 +53,7 @@ export async function POST(request: NextRequest) {
                 tags,
                 contentHash,
                 description,
-                // title 欄位在 schema 中似乎沒有定義在 metadata 參數中，
-                // 但 PorfolioItem 有 title。Service 層的 interface 可能需要擴充 title。
-                // 暫時透過 merge 方式處理，或更新 service 定義。
-                // 檢查 service 定義：metadata 只有 categoryName...等。
-                // 修正：我需要在調用 service 之前確認 service 接受 title。
-                // 查看 Service 定義，目前沒有 title。
-                // 我應該更新 Service 來接受 title。
+                photoDate: photoDate || undefined, // 傳遞 EXIF 拍攝時間
             },
             tenantId
         );

@@ -14,6 +14,7 @@ import { clsx } from "clsx";
 import GoogleDrivePicker from "@/components/GoogleDrivePicker";
 import GooglePhotosPicker, { checkPendingPhotosPickerSession } from "@/components/GooglePhotosPicker";
 import { authenticatedFetch } from "@/lib/api-client";
+import exifr from "exifr";
 
 export default function AutoForm() {
     const [uploading, setUploading] = useState(false);
@@ -100,11 +101,19 @@ export default function AutoForm() {
     const processFiles = async (files: File[]) => {
         setFileError(null);
 
+        // 支援的圖片副檔名（用於處理 HEIC/HEIF 等 MIME type 不標準的舊格式）
+        const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'bmp', 'tiff', 'tif', 'avif'];
+        const isImageFile = (f: File) => {
+            if (f.type.startsWith('image/')) return true;
+            const ext = f.name.split('.').pop()?.toLowerCase() ?? '';
+            return IMAGE_EXTS.includes(ext);
+        };
+
         // 限制最多 100 張
-        const validFiles = files.filter(f => f.type.startsWith("image/")).slice(0, 100);
+        const validFiles = files.filter(isImageFile).slice(0, 100);
 
         if (validFiles.length === 0) {
-            setFileError("請上傳有效的圖片檔案");
+            setFileError("請上傳有效的圖片檔案（支援 JPG、PNG、HEIC 等格式）");
             return;
         }
 
@@ -139,13 +148,27 @@ export default function AutoForm() {
 
                 if (!isDuplicate) {
                     batchHashes.add(contentHash);
-                    // 3. 壓縮圖片
+                    // 3. 嘗試讀取 EXIF 拍攝時間（在壓縮前讀取，因為壓縮後 EXIF 資訊可能遺失）
+                    let photoDate: string | undefined;
+                    try {
+                        const exifData = await exifr.parse(file, { pick: ["DateTimeOriginal", "DateTime"] });
+                        const dateValue = exifData?.DateTimeOriginal || exifData?.DateTime;
+                        if (dateValue instanceof Date) {
+                            photoDate = dateValue.toISOString();
+                        } else if (dateValue) {
+                            photoDate = new Date(dateValue).toISOString();
+                        }
+                    } catch {
+                        // 無 EXIF 資訊，忽略錯誤（使用上傳時間作為備用）
+                    }
+                    // 4. 壓縮圖片
                     const compressed = await compressImage(file, { maxWidthOrHeight: 1280 });
                     processed.push({
                         file: compressed,
                         originalFile: file,
                         preview: URL.createObjectURL(compressed),
                         contentHash,
+                        photoDate,
                         isDuplicate: false
                     });
                 } else {
@@ -154,7 +177,7 @@ export default function AutoForm() {
             }
 
             // 過濾掉重複的照片，並確保型別正確
-            const uniqueFiles = processed.filter((p): p is { file: File, originalFile: File, preview: string, contentHash: string, isDuplicate: false } => !p.isDuplicate);
+            const uniqueFiles = processed.filter((p): p is { file: File, originalFile: File, preview: string, contentHash: string, photoDate: string | undefined, isDuplicate: false } => !p.isDuplicate);
             const duplicateCount = processed.length - uniqueFiles.length;
 
             if (duplicateCount > 0) {
@@ -168,6 +191,7 @@ export default function AutoForm() {
             setSelectedFiles(prev => [...prev, ...uniqueFiles.map(p => {
                 const f = p.file as any;
                 f.contentHash = p.contentHash;
+                f.photoDate = p.photoDate; // 儲存 EXIF 拍攝時間
                 return f;
             })]);
 
@@ -204,11 +228,25 @@ export default function AutoForm() {
                 const snapshot = await getDocs(q);
                 const isDuplicate = !snapshot.empty;
 
+                // 在壓縮前讀取 EXIF 拍攝時間
+                let photoDate: string | undefined;
+                try {
+                    const exifData = await exifr.parse(file, { pick: ["DateTimeOriginal", "DateTime"] });
+                    const dateValue = exifData?.DateTimeOriginal || exifData?.DateTime;
+                    if (dateValue instanceof Date) {
+                        photoDate = dateValue.toISOString();
+                    } else if (dateValue) {
+                        photoDate = new Date(dateValue).toISOString();
+                    }
+                } catch {
+                    // 無 EXIF 資訊，忽略錯誤
+                }
                 const compressed = await compressImage(file, { maxWidthOrHeight: 1280 });
                 return {
                     file: compressed,
                     preview: URL.createObjectURL(compressed),
                     contentHash,
+                    photoDate,
                     isDuplicate
                 };
             }));
@@ -224,6 +262,7 @@ export default function AutoForm() {
                 setSelectedFiles(prev => [...prev, ...uniqueFiles.map(p => {
                     const f = p.file as any;
                     f.contentHash = p.contentHash;
+                    f.photoDate = p.photoDate; // 儲存 EXIF 拍攝時間
                     return f;
                 })]);
                 setPreviews(prev => [...prev, ...uniqueFiles.map(p => p.preview)]);
@@ -273,6 +312,10 @@ export default function AutoForm() {
                 formData.append("categoryOrder", categoryOrder.toString());
                 formData.append("tags", JSON.stringify(currentTags)); // 陣列需轉字串傳遞
                 formData.append("contentHash", (file as any).contentHash || "");
+                // 傳遞 EXIF 拍攝時間（若有的話）
+                if ((file as any).photoDate) {
+                    formData.append("photoDate", (file as any).photoDate);
+                }
                 formData.append("tenantId", tenantId); // 強制傳遞 tenantId
 
                 const uploadRes = await authenticatedFetch("/api/upload", {

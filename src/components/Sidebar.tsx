@@ -3,6 +3,7 @@
 import { Category } from "@/lib/schema";
 import { clsx } from "clsx";
 import { useAuth } from "@/components/AuthContext";
+import { useSystemSettings } from "@/components/SystemSettings";
 
 interface SidebarProps {
     categories: Category[];
@@ -16,11 +17,16 @@ export default function Sidebar({
     onSelectCategory,
 }: SidebarProps) {
     const { isAdmin } = useAuth();
+    const { settings } = useSystemSettings();
+    const siteName = settings.siteName || "KELLY PHOTO";
 
-    // 過濾分類：非管理員看不到「待分類照片」
+    // 過濾分類：
+    // 1. __回收區__ 永遠不在前台顯示（任何人，包含管理員）
+    // 2. 非管理員看不到「待分類照片」
+    const RECYCLE_CATEGORY = "__回收區__";
     const categories = isAdmin
-        ? allCategories
-        : allCategories.filter(c => c.name !== "待分類照片");
+        ? allCategories.filter(c => c.name !== RECYCLE_CATEGORY)
+        : allCategories.filter(c => c.name !== "待分類照片" && c.name !== RECYCLE_CATEGORY);
 
     return (
         <>
@@ -28,7 +34,7 @@ export default function Sidebar({
             <aside className="hidden lg:flex fixed left-0 top-0 h-screen w-[100px] flex-col items-center py-12 border-r border-gray-300 bg-[#F8F7F3] z-50 shadow-[4px_0_15px_rgba(0,0,0,0.03)]">
                 <div className="mb-12">
                     <h1 className="vertical-serif text-2xl font-bold tracking-widest text-[#1A1A1A]">
-                        KELLY PHOTO
+                        {siteName}
                     </h1>
                 </div>
 

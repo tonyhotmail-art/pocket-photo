@@ -1,0 +1,60 @@
+﻿
+> portfolio@0.1.0 build
+> next build
+
+??Next.js 16.1.6 (Turbopack)
+- Environments: .env.local
+
+  Creating an optimized production build ...
+??Compiled successfully in 8.2s
+  Running TypeScript ...
+  Collecting page data using 11 workers ...
+[Config] Loading Firebase Config...
+[Config] API Key present: true
+[Config] Auth Domain: kellyportfolio-811ca.firebaseapp.com
+[Config] Loading Firebase Config...
+[Config] API Key present: true
+[Config] Auth Domain: kellyportfolio-811ca.firebaseapp.com
+[Config] Loading Firebase Config...
+[Config] API Key present: true
+[Config] Auth Domain: kellyportfolio-811ca.firebaseapp.com
+[Config] Loading Firebase Config...
+[Config] API Key present: true
+[Config] Auth Domain: kellyportfolio-811ca.firebaseapp.com
+[Config] Loading Firebase Config...
+[Config] API Key present: true
+[Config] Auth Domain: kellyportfolio-811ca.firebaseapp.com
+  Generating static pages using 11 workers (0/15) ...
+  Generating static pages using 11 workers (3/15) 
+[Config] Loading Firebase Config...
+[Config] API Key present: true
+[Config] Auth Domain: kellyportfolio-811ca.firebaseapp.com
+[Config] Loading Firebase Config...
+[Config] API Key present: true
+[Config] Auth Domain: kellyportfolio-811ca.firebaseapp.com
+  Generating static pages using 11 workers (7/15) 
+  Generating static pages using 11 workers (11/15) 
+??Generating static pages using 11 workers (15/15) in 1346.4ms
+  Finalizing page optimization ...
+
+Route (app)
+????/
+????/_not-found
+??? /api/admin/sync-role
+??? /api/delete-image
+??? /api/photos-picker/media
+??? /api/photos-picker/poll
+??? /api/photos-picker/session
+??? /api/setup/debug-data
+??? /api/setup/migrate-tenant
+??? /api/upload
+??? /api/works
+??? /api/works/paginate
+????/robots.txt
+
+
+? Proxy (Middleware)
+
+?? (Static)   prerendered as static content
+?  (Dynamic)  server-rendered on demand
+

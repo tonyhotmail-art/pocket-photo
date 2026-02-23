@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Noto_Serif_TC } from "next/font/google";
 import "./globals.css";
+import { ClerkProvider } from "@clerk/nextjs";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -39,20 +40,22 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-TW">
-      <head>
-        {/* Google Identity Services for OAuth 2.0 */}
-        <script src="https://accounts.google.com/gsi/client" async defer></script>
-      </head>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} ${notoSerifTC.variable} antialiased`}
-      >
-        <AuthProvider>
-          <SmoothScroll />
-          {children}
-        </AuthProvider>
-      </body>
-    </html>
+    <ClerkProvider>
+      <html lang="zh-TW">
+        <head>
+          {/* Google Identity Services for OAuth 2.0 */}
+          <script src="https://accounts.google.com/gsi/client" async defer></script>
+        </head>
+        <body
+          className={`${geistSans.variable} ${geistMono.variable} ${notoSerifTC.variable} antialiased`}
+        >
+          <AuthProvider>
+            <SmoothScroll />
+            {children}
+          </AuthProvider>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }
 

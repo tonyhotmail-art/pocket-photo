@@ -1,0 +1,108 @@
+"use client";
+
+import { Category } from "@/lib/schema";
+import { clsx } from "clsx";
+import { useAuth } from "@/components/AuthContext";
+
+interface SidebarProps {
+    categories: Category[];
+    selectedCategoryName: string;
+    onSelectCategory: (name: string) => void;
+}
+
+export default function Sidebar({
+    categories: allCategories,
+    selectedCategoryName,
+    onSelectCategory,
+}: SidebarProps) {
+    const { isAdmin } = useAuth();
+
+    // 過濾分類：
+    // 1. __回收區__ 永遠不在前台顯示（任何人，包含管理員）
+    // 2. 非管理員看不到「待分類照片」
+    const RECYCLE_CATEGORY = "__回收區__";
+    const categories = isAdmin
+        ? allCategories.filter(c => c.name !== RECYCLE_CATEGORY)
+        : allCategories.filter(c => c.name !== "待分類照片" && c.name !== RECYCLE_CATEGORY);
+
+    return (
+        <>
+            {/* 電腦版側邊欄 (lg 以上) */}
+            <aside className="hidden lg:flex fixed left-0 top-0 h-screen w-[100px] flex-col items-center py-12 border-r border-gray-300 bg-[#F8F7F3] z-50 shadow-[4px_0_15px_rgba(0,0,0,0.03)]">
+                <div className="mb-12">
+                    <h1 className="vertical-serif text-2xl font-bold tracking-widest text-[#1A1A1A]">
+                        KELLY PHOTO
+                    </h1>
+                </div>
+
+                <nav data-lenis-prevent className="flex flex-col gap-4 flex-1 overflow-y-auto sidebar-scrollbar py-8 w-full items-center">
+                    <div className="relative group w-full flex flex-col items-center">
+                        <button
+                            onClick={() => onSelectCategory("all")}
+                            className={clsx(
+                                "vertical-serif text-sm transition-all duration-300 w-10 py-6 rounded-sm flex items-center justify-center",
+                                selectedCategoryName === "all"
+                                    ? "bg-[#1A1A1A] text-white font-bold shadow-md"
+                                    : "text-gray-400 hover:text-gray-600 hover:bg-gray-100/50"
+                            )}
+                        >
+                            全部作品 / ALL
+                        </button>
+
+                    </div>
+
+                    {categories.map((category) => (
+                        <div key={category.id} className="relative group w-full flex flex-col items-center">
+                            <button
+                                onClick={() => onSelectCategory(category.name)}
+                                className={clsx(
+                                    "vertical-serif text-sm transition-all duration-300 w-10 py-6 rounded-sm flex items-center justify-center",
+                                    selectedCategoryName === category.name
+                                        ? "bg-[#1A1A1A] text-white font-bold shadow-md"
+                                        : "text-gray-400 border-transparent hover:text-gray-600 hover:bg-gray-100/50"
+                                )}
+                            >
+                                {category.name}
+                            </button>
+
+
+                        </div>
+                    ))}
+                </nav>
+
+                <div className="mt-auto h-12" />
+            </aside>
+
+            {/* 行動版橫拉標籤列 (lg 以下) */}
+            <nav className="lg:hidden fixed top-16 left-0 right-0 h-14 bg-[#F8F7F3]/95 backdrop-blur-md border-b border-gray-100 z-30 flex items-center overflow-x-auto no-scrollbar px-6 gap-2">
+                <button
+                    onClick={() => onSelectCategory("all")}
+                    className={clsx(
+                        "whitespace-nowrap px-4 py-1.5 text-xs tracking-widest transition-all rounded-full border",
+                        selectedCategoryName === "all"
+                            ? "bg-[#1A1A1A] text-white border-[#1A1A1A]"
+                            : "bg-white text-gray-400 border-gray-100"
+                    )}
+                >
+                    ALL 全部
+                </button>
+                {categories.map((category) => (
+                    <button
+                        key={category.id}
+                        onClick={() => onSelectCategory(category.name)}
+                        className={clsx(
+                            "whitespace-nowrap px-4 py-1.5 text-xs tracking-widest transition-all rounded-full border",
+                            selectedCategoryName === category.name
+                                ? "bg-[#1A1A1A] text-white border-[#1A1A1A]"
+                                : "bg-white text-gray-400 border-gray-100"
+                        )}
+                    >
+                        {category.name}
+                    </button>
+                ))}
+                {/* 增加右側留白確保滑到底部美觀 */}
+                <div className="min-w-[24px]" />
+            </nav>
+        </>
+    );
+}

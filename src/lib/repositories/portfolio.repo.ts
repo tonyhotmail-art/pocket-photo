@@ -143,36 +143,27 @@ export class PortfolioRepository {
      * 取得分頁資料 (包含下一頁資訊)
      */
     async getItemsByPage(tenantId: string, page: number, pageSize: number, category: string) {
-        const baseConstraints: QueryConstraint[] = [
-            where("tenantId", "==", tenantId),
-            orderBy("categoryOrder", "asc"), // 確保預設排序一致
-            orderBy("createdAt", "desc")
-        ];
 
         if (category && category !== "all") {
-            // 注意: 使用 compound query cache 時，orderBy 欄位必須在 wehre 欄位之後或有索引
-            // 這裡我們把 categoryName 加入
-            // 但上面的 baseConstraints 已經有了 categoryOrder...?
-            // Rule 4 說要強制 index。我們先照舊有邏輯，若有 category，則 filter categoryName
-            // 並移除 categoryOrder 排序，或者確保有複合索引。
-            // 舊有 API: orderBy("createdAt", "desc") (當 all)
-            // or where("categoryName", "==", category), orderBy("createdAt", "desc")
-
-            // 讓我們清理 constraints
-            const constraints: QueryConstraint[] = [where("tenantId", "==", tenantId)];
-            if (category !== "all") {
-                constraints.push(where("categoryName", "==", category));
-            }
-            constraints.push(orderBy("createdAt", "desc"));
-
-            return await this._executeQueryWithPagination(constraints, page, pageSize);
-        } else {
-            // Default "all"
+            // 特定分類模式：使用 categoryName + createdAt 索引
             const constraints: QueryConstraint[] = [
                 where("tenantId", "==", tenantId),
+                where("categoryName", "==", category),
                 orderBy("createdAt", "desc")
             ];
             return await this._executeQueryWithPagination(constraints, page, pageSize);
+        } else {
+            // 「全部」模式：使用 categoryOrder + createdAt 排序，應用層過濾回收區
+            // 避免使用 != 操作符（需要複合索引），改為取出後過濾
+            const constraints: QueryConstraint[] = [
+                where("tenantId", "==", tenantId),
+                orderBy("categoryOrder", "asc"),
+                orderBy("createdAt", "desc")
+            ];
+            return await this._executeQueryWithPaginationFiltered(
+                constraints, page, pageSize,
+                (item) => item.categoryName !== "__回收區__"
+            );
         }
     }
 
@@ -207,6 +198,40 @@ export class PortfolioRepository {
                 currentPage: page
             };
         }
+    }
+
+    /**
+     * 帶應用層過濾的分頁查詢（用於需要排除特定項目但不想使用 != 操作符的場景）
+     * 使用較大的 fetch size 確保過濾後仍有足夠資料，適合回收區項目極少的情況
+     */
+    private async _executeQueryWithPaginationFiltered(
+        constraints: QueryConstraint[],
+        page: number,
+        pageSize: number,
+        filterFn: (item: PortfolioItem) => boolean
+    ) {
+        // 多抓一些資料確保過濾後夠用（假設回收區比例低，多取 50 筆緩衝）
+        const BUFFER = 50;
+        const fetchSize = (page * pageSize) + BUFFER;
+
+        const q = query(collection(db, this.collectionName), ...constraints, limit(fetchSize));
+        const snapshot = await getDocs(q);
+
+        // 應用層過濾
+        const allFilteredDocs = snapshot.docs.filter(d => filterFn({ id: d.id, ...d.data() } as PortfolioItem));
+
+        const startIdx = (page - 1) * pageSize;
+        const endIdx = startIdx + pageSize;
+        const pageDocs = allFilteredDocs.slice(startIdx, endIdx);
+
+        const items = pageDocs.map(d => ({ id: d.id, ...d.data() } as PortfolioItem));
+
+        return {
+            items,
+            hasNextPage: allFilteredDocs.length > endIdx,
+            hasPrevPage: page > 1,
+            currentPage: page
+        };
     }
 }
 

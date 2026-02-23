@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef, Suspense } from "react";
 import NextImage from "next/image";
+import { SignInButton } from "@clerk/nextjs";
+import UserCardDropdown from "@/components/UserCardDropdown";
 import { db } from "@/lib/firebase";
 import { collection, query, orderBy, onSnapshot, where, limit, getDoc, doc } from "firebase/firestore";
 import { Category, PortfolioItem } from "@/lib/schema";
@@ -12,12 +14,13 @@ import AutoForm from "@/components/AutoForm";
 import CategoryManager from "@/components/CategoryManager";
 import WorkManager from "@/components/WorkManager";
 import AdminManagement from "@/components/AdminManagement";
-import LoginModal from "@/components/LoginModal";
 import { useAuth } from "@/components/AuthContext";
 import { accessConfig } from "@/lib/config";
-import { Settings, Image as ImageIcon, Loader2, X, LogOut, MessageCircle, Share2 } from "lucide-react";
+import { Settings, Image as ImageIcon, Loader2, X, LogOut, MessageCircle, Share2, SlidersHorizontal } from "lucide-react";
 import { clsx } from "clsx";
 import { useSearchParams } from "next/navigation";
+import SystemSettings, { useSystemSettings } from "@/components/SystemSettings";
+
 
 function HomeContent() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -27,7 +30,6 @@ function HomeContent() {
   const [selectedItem, setSelectedItem] = useState<PortfolioItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAdmin, setShowAdmin] = useState(false);
-  const [showLogin, setShowLogin] = useState(false);
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [displayLimit, setDisplayLimit] = useState(20);
   const [hasMore, setHasMore] = useState(false);
@@ -38,7 +40,8 @@ function HomeContent() {
   const touchStartY = useRef<number>(0);
   const isAtTop = useRef<boolean>(true);
 
-  const { isAdmin, logout, user } = useAuth();
+  const { isAdmin, isAuthenticated, logout, userName, userPhotoUrl } = useAuth();
+  const { settings: siteSettings } = useSystemSettings(); // 前台功能設定
   const searchParams = useSearchParams();
   const initialPhotoId = searchParams.get("id");
   const hasAutoOpened = useRef(false);
@@ -72,12 +75,13 @@ function HomeContent() {
   const shouldOpenFirstItem = useRef(false);
   const autoNavStartIndex = useRef<number>(-1); // 記錄開始自動導覽的分類索引，防無限迴圈
 
+  // handleAdminToggle：已登入管理員直接開啟面板，
+  // 未登入時由 <SignInButton> 元件負責觸發 Clerk 登入視窗
   const handleAdminToggle = () => {
     if (isAdmin) {
       setShowAdmin(!showAdmin);
-    } else {
-      setShowLogin(true);
     }
+    // NOTE: 未登入時的登入觸發由下方 JSX 的 <SignInButton> 包裝負責
   };
 
   // 讀取分類
@@ -374,6 +378,7 @@ function HomeContent() {
               onItemClick={setSelectedItem}
               onCategoryClick={handleCategoryChange}
               onTagClick={setSelectedTag}
+              showTimeline={siteSettings.showTimeline}
             />
             <div ref={observerTarget} className="h-20 flex items-center justify-center">
               {hasMore && loading && (
@@ -437,107 +442,113 @@ function HomeContent() {
         onItemUpdate={handleItemUpdate}
       />
 
-      {/* 右下角功能按鈕組群 */}
-      <div className="fixed bottom-6 right-6 md:bottom-8 md:right-8 flex flex-col gap-3 md:gap-4 z-40 items-center">
-        {/* 1. 分享作品集 */}
-        <button
-          onClick={() => {
-            const url = `${window.location.origin}${window.location.pathname}`;
-            if (navigator.share) {
-              navigator.share({
-                title: `Kelly Photo 作品集`,
-                url: url
-              }).catch(console.error);
-            } else if (navigator.clipboard) {
-              navigator.clipboard.writeText(url);
-              alert("網址已複製到剪貼簿");
-            } else {
-              alert("您的瀏覽器不支援自動複製，請手動複製網址：" + url);
-            }
-          }}
-          className="p-2.5 md:p-3 bg-white text-[#1A1A1A] shadow-xl rounded-full hover:scale-110 transition-transform border border-gray-100 flex items-center justify-center"
-          title="分享整個作品集"
-        >
-          <Share2 className="w-5 h-5 md:w-6 md:h-6" strokeWidth={1.5} />
-        </button>
+      {/* 右下角功能按鈕組群 - 登入者圖示置頂 */}
+      <div className="fixed bottom-6 right-6 md:bottom-8 md:right-8 flex flex-col gap-3 z-40 items-center">
 
-        {/* 2. 聯繫作者 LINE@ */}
+        {/* 0. 登入者圖示（最上方）*/}
+        {isAdmin ? (
+          /* 管理員：自訂使用者卡片 */
+          <UserCardDropdown size={44} afterSignOutUrl="/" />
+        ) : isAuthenticated ? (
+          /* 一般客戶：登出按鈕 */
+          <button
+            onClick={() => logout()}
+            className="w-11 h-11 shadow-xl rounded-full hover:scale-110 transition-transform flex items-center justify-center border bg-white text-[#555555] border-gray-200"
+            title="登出"
+          >
+            <LogOut className="w-5 h-5" strokeWidth={1.5} />
+          </button>
+        ) : null}
+
+        {/* 1. 分享作品集（由後台設定控制是否顯示）*/}
+        {siteSettings.allowSharing && (
+          <button
+            onClick={() => {
+              const url = `${window.location.origin}${window.location.pathname}`;
+              if (navigator.share) {
+                navigator.share({
+                  title: `Kelly Photo 作品集`,
+                  url: url
+                }).catch(console.error);
+              } else if (navigator.clipboard) {
+                navigator.clipboard.writeText(url);
+                alert("網址已複製到剪貼簿");
+              } else {
+                alert("您的瀏覽器不支援自動複製，請手動複製網址：" + url);
+              }
+            }}
+            className="w-11 h-11 bg-white text-[#555555] shadow-xl rounded-full hover:scale-110 transition-transform border border-gray-200 flex items-center justify-center"
+            title="分享整個作品集"
+          >
+            <Share2 className="w-5 h-5" strokeWidth={1.5} />
+          </button>
+        )}
+
+        {/* 2. 聯繫 LINE@ */}
         <a
           href="https://lin.ee/aS8aSlB"
           target="_blank"
           rel="noopener noreferrer"
-          className="p-2.5 md:p-3 bg-[#00B900] text-white shadow-xl rounded-full hover:scale-110 transition-transform flex items-center justify-center border border-white/20"
+          className="w-11 h-11 bg-[#00B900] text-white shadow-xl rounded-full hover:scale-110 transition-transform flex items-center justify-center"
           title="聯繫作者 LINE@"
         >
-          <MessageCircle className="w-5 h-5 md:w-6 md:h-6" strokeWidth={2} />
+          <MessageCircle className="w-5 h-5" strokeWidth={2} />
         </a>
 
-        {/* 3. 管理員設定 */}
-        <button
-          onClick={handleAdminToggle}
-          className={clsx(
-            "p-2.5 md:p-3 shadow-xl rounded-full hover:scale-110 transition-transform flex items-center justify-center border",
-            isAdmin ? "bg-black text-white border-black" : "bg-white text-[#1A1A1A] border-gray-100"
-          )}
-          title={isAdmin ? "管理面板" : "管理員登入"}
-        >
-          <Settings className="w-5 h-5 md:w-6 md:h-6" strokeWidth={1.5} />
-        </button>
+        {/* 3. 管理員設定入口（最下方） */}
+        {isAdmin ? (
+          <button
+            onClick={handleAdminToggle}
+            className="w-11 h-11 shadow-xl rounded-full hover:scale-110 transition-transform flex items-center justify-center border bg-[#1A1A1A] text-white border-[#1A1A1A]"
+            title="管理面板"
+          >
+            <Settings className="w-5 h-5" strokeWidth={1.5} />
+          </button>
+        ) : !isAuthenticated ? (
+          <SignInButton mode="modal">
+            <button
+              className="w-11 h-11 shadow-xl rounded-full hover:scale-110 transition-transform flex items-center justify-center border bg-white text-[#888888] border-gray-200"
+              title="管理員登入"
+            >
+              <Settings className="w-5 h-5" strokeWidth={1.5} />
+            </button>
+          </SignInButton>
+        ) : null}
       </div>
 
-      {showLogin && (
-        <LoginModal
-          onClose={() => setShowLogin(false)}
-          onSuccess={() => {
-            setShowLogin(false);
-            setShowAdmin(true);
-          }}
-        />
-      )}
-
       {showAdmin && isAdmin && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-0 md:p-4 touch-none overscroll-none">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-0 md:p-4 touch-none overscroll-none">
           <div className="bg-white w-full h-[100dvh] md:h-auto md:max-h-[95vh] md:max-w-7xl md:rounded-2xl shadow-2xl relative flex flex-col overflow-hidden">
-            <div className="p-5 md:p-6 border-b flex justify-between items-center bg-white z-10">
-              <div className="flex items-center gap-4">
-                <h2 className="text-xl md:text-2xl font-bold">後台管理控制面板</h2>
-                {user && (
-                  <span className="text-xs bg-gray-100 px-3 py-1 rounded-full text-gray-600 font-bold flex items-center gap-2">
-                    {user.photoURL ? (
-                      <NextImage
-                        src={user.photoURL}
-                        alt="Avatar"
-                        width={20}
-                        height={20}
-                        className="rounded-full border border-white shadow-sm"
-                        referrerPolicy="no-referrer"
-                        unoptimized={true} // Google User Content URL
-                      />
-                    ) : (
-                      <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
-                    )}
-                    {user.displayName || user.email?.split('@')[0]}，您好
-                  </span>
+
+            {/* 管理面板 Header：深灰底色，日式極簡樣式 */}
+            <div className="px-5 py-4 md:px-6 md:py-5 border-b border-[#2a2a2a] flex justify-between items-center bg-[#1A1A1A] z-10">
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] tracking-[0.3em] uppercase text-[#888888] font-light">Admin</span>
+                <span className="text-[#444444]">|</span>
+                <h2 className="text-sm md:text-base font-medium text-white tracking-wide">後台管理</h2>
+                {userName && (
+                  /* 頭像可點擊，展開同款使用者選單（不需遮罩，因為已在 Modal 內） */
+                  <UserCardDropdown size={28} afterSignOutUrl="/" noBackdrop />
                 )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 <button
                   onClick={() => {
                     logout();
                     setShowAdmin(false);
                   }}
-                  className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors flex items-center gap-2 text-sm"
+                  className="flex items-center gap-1.5 text-xs text-[#888888] hover:text-white hover:bg-[#2a2a2a] px-3 py-2 rounded-lg transition-colors"
                   title="登出管理員"
                 >
-                  <LogOut size={20} />
-                  <span className="hidden md:inline">登出</span>
+                  <LogOut size={14} />
+                  <span className="hidden md:inline tracking-wide">登出</span>
                 </button>
                 <button
                   onClick={() => setShowAdmin(false)}
-                  className="p-2 hover:bg-gray-100 rounded-full transition-colors font-sans"
+                  className="w-8 h-8 flex items-center justify-center text-[#666666] hover:text-white hover:bg-[#2a2a2a] rounded-lg transition-colors"
                   aria-label="關閉管理介面"
                 >
-                  <X size={24} />
+                  <X size={18} />
                 </button>
               </div>
             </div>
@@ -555,6 +566,11 @@ function HomeContent() {
                     <AutoForm />
                   </section>
                 </div>
+
+                <hr className="border-gray-100" />
+                <section>
+                  <SystemSettings />
+                </section>
 
                 <hr className="border-gray-100" />
                 <section>

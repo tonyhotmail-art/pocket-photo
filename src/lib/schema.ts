@@ -22,10 +22,13 @@ export const portfolioItemSchema = z.object({
     categoryName: z.string().min(1, "請選擇分類"),
     categoryOrder: z.number().optional(), // 分類排序權重
     tags: z.array(z.string()),
-    createdAt: z.any().optional(), // Firestore Timestamp
+    createdAt: z.any().optional(), // Firestore Timestamp (上傳時間)
+    photoDate: z.string().optional(), // 照片原始拍攝日期 (ISO 字串，從 EXIF 讀取)
+    deletedAt: z.string().optional(), // 移入回收區的時間 (ISO 字串，30天後永久刪除)
     contentHash: z.string().optional(), // 內容指紋 (SHA-256)
     tenantId: z.string().optional(),
 });
+
 
 
 

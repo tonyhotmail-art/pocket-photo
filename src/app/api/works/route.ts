@@ -3,8 +3,8 @@ import { verifyAdminAuth } from "@/lib/auth-middleware";
 import { portfolioService } from "@/lib/services/portfolio.service";
 
 export async function DELETE(request: NextRequest) {
-    // 🔒 驗證身份
-    const authResult = await verifyAdminAuth(request);
+    // 🔒 Clerk 驗證身份
+    const authResult = await verifyAdminAuth();
     if (!authResult.success) {
         return NextResponse.json(
             { success: false, error: authResult.error },
@@ -60,8 +60,8 @@ export async function DELETE(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-    // 🔒 驗證身份
-    const authResult = await verifyAdminAuth(request);
+    // 🔒 Clerk 驗證身份
+    const authResult = await verifyAdminAuth();
     if (!authResult.success) {
         return NextResponse.json(
             { success: false, error: authResult.error },

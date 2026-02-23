@@ -5,8 +5,8 @@ import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { verifyAdminAuth } from "@/lib/auth-middleware";
 
 export async function POST(request: NextRequest) {
-    // 🔒 驗證身份
-    const authResult = await verifyAdminAuth(request);
+    // 🔒 Clerk 驗證身份
+    const authResult = await verifyAdminAuth();
     if (!authResult.success) {
         return NextResponse.json(
             { error: authResult.error },

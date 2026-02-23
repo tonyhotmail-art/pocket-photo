@@ -17,7 +17,15 @@ const clientEnvSchema = z.object({
     // Google APIs (Optional)
     NEXT_PUBLIC_GOOGLE_API_KEY: z.string().optional(),
     NEXT_PUBLIC_GOOGLE_CLIENT_ID: z.string().optional(),
+
+    // Clerk Authentication (Public)
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1, "Clerk Publishable Key 為必填"),
+    NEXT_PUBLIC_CLERK_SIGN_IN_URL: z.string().default("/sign-in"),
+    NEXT_PUBLIC_CLERK_SIGN_UP_URL: z.string().default("/sign-up"),
+    NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL: z.string().default("/"),
+    NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL: z.string().default("/"),
 });
+
 
 /**
  * Server-side Environment Variables Schema
@@ -35,6 +43,16 @@ const serverEnvSchema = clientEnvSchema.extend({
     R2_SECRET_ACCESS_KEY: z.string().min(1, "R2 Secret Access Key 為必填"),
     R2_BUCKET_NAME: z.string().min(1, "R2 Bucket Name 為必填"),
     R2_PUBLIC_DOMAIN: z.string().url("R2 Public Domain 必須是有效的 URL").optional().or(z.literal("")),
+
+    // Clerk Authentication (Private)
+    CLERK_SECRET_KEY: z.string().min(1, "Clerk Secret Key 為必填"),
+
+    // 雙水管切換開關 (auth pipe selector)
+    // 'clerk'    = 優先用 Clerk publicMetadata，失敗則 fallback 到 Firestore
+    // 'firebase' = 優先用 Firestore admins 集合，失敗則 fallback 到 Clerk
+    // 'clerk-only'    = 只用 Clerk，完全不查 Firestore
+    // 'firebase-only' = 只用 Firestore，完全不查 Clerk
+    AUTH_PIPE: z.enum(['clerk', 'firebase', 'clerk-only', 'firebase-only']).default('clerk'),
 });
 
 const _clientEnv = clientEnvSchema.safeParse({
@@ -47,7 +65,13 @@ const _clientEnv = clientEnvSchema.safeParse({
     NEXT_PUBLIC_TENANT_ID: process.env.NEXT_PUBLIC_TENANT_ID,
     NEXT_PUBLIC_GOOGLE_API_KEY: process.env.NEXT_PUBLIC_GOOGLE_API_KEY,
     NEXT_PUBLIC_GOOGLE_CLIENT_ID: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+    NEXT_PUBLIC_CLERK_SIGN_IN_URL: process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL,
+    NEXT_PUBLIC_CLERK_SIGN_UP_URL: process.env.NEXT_PUBLIC_CLERK_SIGN_UP_URL,
+    NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL: process.env.NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL,
+    NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL: process.env.NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL,
 });
+
 
 if (!_clientEnv.success) {
     console.error("❌ Invalid client environment variables:", _clientEnv.error.format());
