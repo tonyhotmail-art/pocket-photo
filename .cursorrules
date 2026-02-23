@@ -92,6 +92,7 @@ export const config = {
 ## 規則 6：SaaS 微服務與營運架構 (SaaS Micro-apps & Operations)
 
 - **獨立服務單元 (Micro-apps)**：未來的每一個系統（如「口袋預約」、「口袋照片」）皆視為獨立的 Web App。每個系統必須擁有專屬的 Vercel 部署、專屬的 Firebase 專案（資料庫）以及 Cloudflare R2（靜態檔案），保持資料與流量的絕對隔離。
+- **目錄實體隔離 (Directory Isolation)**：**【絕對強制】** 建立新專案（如執行 `create-next-app`）時，或複製其他專案資料夾時，**嚴禁**將新專案建立/放置於現有專案的目錄結構內（禁止巢狀專案）。所有獨立專案必須並列於外層工作目錄（例如：`KELLYPHOTO/` 之下，而非 `KELLYPHOTO/portfolio/` 之下），以防止 Git 版控互相污染並導致 CI/CD 部署失敗。
 - **統一身分驗證 (SSO)**：系統整合時，統一以 **Clerk** 作為身分驗證中心。嚴禁在個別系統中使用 Firebase Authentication。各獨立 Web App 必須透過讀取 Clerk 的 JWT Token (如 `userId` 或 `orgId`)，再依照該 ID 去存取自身的 Firebase 資料庫。
 - **方案預留**：租戶表 (Tenants) 必須預留 `plan` (如 basic/pro), `status` (active/past_due), 以及 `usageQuota` 等欄位。
 - **API 頻率限制**：API 設計需考慮 Rate Limit 邏輯，防止被腳本惡意刷流量。
