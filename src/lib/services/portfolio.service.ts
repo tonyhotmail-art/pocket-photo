@@ -11,6 +11,8 @@ export class PortfolioService {
      * @param originalName 原始檔名
      * @param metadata 作品中繼資料 (分類、標籤等)
      * @param tenantId 租戶 ID
+     * @param requestingUserId 發起請求的金鑰 ID
+     * @param requestingUserRole 發起請求的角色
      */
     async uploadAndCreateItem(
         fileBuffer: Buffer,
@@ -27,7 +29,9 @@ export class PortfolioService {
             height?: number;
             photoDate?: string; // EXIF 拍攝時間 (ISO 字串格式)
         },
-        tenantId: string
+        tenantId: string,
+        requestingUserId: string,
+        requestingUserRole: string
     ): Promise<string> {
         // 1. 上傳至 Cloudflare R2
         const imageUrl = await uploadToR2(fileBuffer, fileType, tenantId, originalName);
@@ -43,17 +47,26 @@ export class PortfolioService {
             height: metadata.height || 0,
             contentHash: metadata.contentHash,
             description: metadata.description || "",
-            tenantId,
             visible: true,
             // 若有 EXIF 拍攝時間則使用，否則以上傳時間作為 fallback
             photoDate: metadata.photoDate || new Date().toISOString(),
         };
 
-        // 3. 驗證 Schema (確保資料正確性)
-        portfolioItemSchema.parse(itemData);
+        // 3. 驗證 Schema (確保資料正確性，加入必要的 tenantId 與 createdat 以通過驗證，但 repo 會覆蓋)
+        portfolioItemSchema.parse({
+            ...itemData,
+            tenantId,
+            id: 'temp-id',
+            createdAt: new Date().toISOString()
+        });
 
         // 4. 寫入資料庫
-        const itemId = await portfolioRepo.createItem(itemData, tenantId);
+        const itemId = await portfolioRepo.createItem(
+            itemData,
+            tenantId,
+            requestingUserId,
+            requestingUserRole
+        );
 
         return itemId;
     }

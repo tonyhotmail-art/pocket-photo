@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
         const page = parseInt(searchParams.get("page") || "1");
         const pageSize = parseInt(searchParams.get("pageSize") || "20");
         const category = searchParams.get("category") || "all";
-        const tenantId = env.NEXT_PUBLIC_TENANT_ID;
+        const tenantId = searchParams.get("tenantSlug") || env.NEXT_PUBLIC_TENANT_ID;
 
         const result = await portfolioService.getPaginatedItems(tenantId, page, pageSize, category);
 

@@ -15,8 +15,10 @@ import GoogleDrivePicker from "@/components/GoogleDrivePicker";
 import GooglePhotosPicker, { checkPendingPhotosPickerSession } from "@/components/GooglePhotosPicker";
 import { authenticatedFetch } from "@/lib/api-client";
 import exifr from "exifr";
+import { useParams } from "next/navigation";
 
 export default function AutoForm() {
+    const { slug } = useParams() as { slug: string };
     const [uploading, setUploading] = useState(false);
     const [previews, setPreviews] = useState<string[]>([]);
     const [dragActive, setDragActive] = useState(false);
@@ -38,7 +40,7 @@ export default function AutoForm() {
     } = useForm<PortfolioItem>({
         resolver: zodResolver(portfolioItemSchema),
         defaultValues: {
-            tenantId: accessConfig.tenantId || "default",
+            tenantId: slug,
             tags: [],
             title: "",
             description: "",
@@ -60,7 +62,7 @@ export default function AutoForm() {
     useEffect(() => {
         const q = query(
             collection(db, "categories"),
-            where("tenantId", "==", accessConfig.tenantId || "default"),
+            where("tenantId", "==", slug),
             orderBy("order", "asc")
         );
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -138,7 +140,7 @@ export default function AutoForm() {
                 } else {
                     const q = query(
                         collection(db, "portfolio_items"),
-                        where("tenantId", "==", accessConfig.tenantId || "default"),
+                        where("tenantId", "==", slug),
                         where("contentHash", "==", contentHash),
                         limit(1)
                     );
@@ -221,7 +223,7 @@ export default function AutoForm() {
                 // 檢查重複
                 const q = query(
                     collection(db, "portfolio_items"),
-                    where("tenantId", "==", accessConfig.tenantId || "default"),
+                    where("tenantId", "==", slug),
                     where("contentHash", "==", contentHash),
                     limit(1)
                 );
@@ -299,7 +301,7 @@ export default function AutoForm() {
         try {
             // 獲取目前分類的順序權重
             const categoryOrder = categories.find(c => c.name === values.categoryName)?.order ?? 0;
-            const tenantId = accessConfig.tenantId || "default";
+            const tenantId = slug;
 
             // 批次處理上傳
             for (const file of selectedFiles) {
@@ -550,7 +552,7 @@ export default function AutoForm() {
                                         await addDoc(q, {
                                             name: newName.trim(),
                                             order: categories.length,
-                                            tenantId: accessConfig.tenantId || "default",
+                                            tenantId: slug,
                                             createdAt: serverTimestamp()
                                         });
                                         setValue("categoryName", newName.trim());

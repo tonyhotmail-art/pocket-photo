@@ -6,6 +6,7 @@ import { doc, onSnapshot, setDoc, serverTimestamp } from "firebase/firestore";
 import { accessConfig } from "@/lib/config";
 import { Share2, Clock, Loader2, SlidersHorizontal } from "lucide-react";
 import { clsx } from "clsx";
+import { useParams } from "next/navigation";
 
 // 系統設定的資料結構
 export interface SystemSettingsData {
@@ -25,14 +26,15 @@ const DEFAULT_SETTINGS: Omit<SystemSettingsData, "tenantId"> = {
 
 // 暴露 hook，讓前台也能讀取設定
 export function useSystemSettings() {
+    const { slug } = useParams() as { slug: string };
     const [settings, setSettings] = useState<SystemSettingsData>({
-        tenantId: accessConfig.tenantId || "default",
+        tenantId: slug,
         ...DEFAULT_SETTINGS,
     });
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const tenantId = accessConfig.tenantId || "default";
+        const tenantId = slug;
         const docRef = doc(db, "system_settings", tenantId);
 
         const unsubscribe = onSnapshot(docRef, (snap) => {
@@ -53,6 +55,7 @@ export function useSystemSettings() {
 
 // 後台控制 UI 組件
 export default function SystemSettings() {
+    const { slug } = useParams() as { slug: string };
     const { settings, loading } = useSystemSettings();
     const [saving, setSaving] = useState(false);
     const [localSiteName, setLocalSiteName] = useState("");
@@ -67,8 +70,7 @@ export default function SystemSettings() {
     const updateValue = async (key: keyof Omit<SystemSettingsData, "tenantId" | "updatedAt">, value: any) => {
         setSaving(true);
         try {
-            const tenantId = accessConfig.tenantId || "default";
-            const docRef = doc(db, "system_settings", tenantId);
+            const docRef = doc(db, "system_settings", slug);
             await setDoc(docRef, {
                 ...settings,
                 [key]: value,

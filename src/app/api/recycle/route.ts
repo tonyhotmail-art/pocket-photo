@@ -117,11 +117,12 @@ export async function GET(request: Request) {
         return NextResponse.json({ success: false, error: "未授權" }, { status: authResult.status ?? 401 });
     }
 
-    const tenantId = env.NEXT_PUBLIC_TENANT_ID || "default";
+    const { searchParams } = new URL(request.url);
+    const tenantSlug = searchParams.get("tenantSlug") || env.NEXT_PUBLIC_TENANT_ID || "default";
     const db = getDb();
 
     const snap = await db.collection("portfolio_items")
-        .where("tenantId", "==", tenantId)
+        .where("tenantId", "==", tenantSlug)
         .where("categoryName", "==", RECYCLE_CATEGORY)
         .get();
 

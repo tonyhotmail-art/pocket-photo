@@ -16,7 +16,7 @@ export default function Sidebar({
     selectedCategoryName,
     onSelectCategory,
 }: SidebarProps) {
-    const { isAdmin } = useAuth();
+    const { isStaffRole } = useAuth();
     const { settings } = useSystemSettings();
     const siteName = settings.siteName || "KELLY PHOTO";
 
@@ -24,7 +24,7 @@ export default function Sidebar({
     // 1. __回收區__ 永遠不在前台顯示（任何人，包含管理員）
     // 2. 非管理員看不到「待分類照片」
     const RECYCLE_CATEGORY = "__回收區__";
-    const categories = isAdmin
+    const categories = isStaffRole
         ? allCategories.filter(c => c.name !== RECYCLE_CATEGORY)
         : allCategories.filter(c => c.name !== "待分類照片" && c.name !== RECYCLE_CATEGORY);
 

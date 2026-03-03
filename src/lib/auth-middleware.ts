@@ -1,6 +1,7 @@
-import { auth, currentUser, clerkClient } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { getAdminApp } from "@/lib/firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
+import { UserRole } from "@/lib/role-hierarchy";
 
 // 從環境變數取得水管設定（預設 'clerk'）
 const AUTH_PIPE = (process.env.AUTH_PIPE ?? "clerk") as
@@ -10,14 +11,12 @@ const AUTH_PIPE = (process.env.AUTH_PIPE ?? "clerk") as
     | "firebase-only";
 
 /**
- * 驗證請求是否來自已授權的管理員
- * 使用雙水管 (Dual-Pipe) 架構：Clerk Metadata 與 Firestore admins 集合互為備援
- * 透過 AUTH_PIPE 環境變數控制優先順序與備援行為
+ * 驗證請求是否來自已授權的管理員 (system_admin 或 store_admin)
  */
 export async function verifyAdminAuth() {
     try {
-        // 1. 從 Clerk 取得當前使用者 Session
-        const { userId } = await auth();
+        // 改從 auth() 取得 userId 與 sessionClaims，避開舊有 currentUser() 引發的 500 錯誤
+        const { userId, sessionClaims } = await auth();
 
         if (!userId) {
             return {
@@ -27,14 +26,24 @@ export async function verifyAdminAuth() {
             };
         }
 
-        // 2. 取得使用者完整資訊（含 Email）
-        const user = await currentUser();
-        const email = user?.emailAddresses[0]?.emailAddress;
+        let email = sessionClaims?.email as string | undefined;
+        let publicMetadata: Record<string, unknown> | undefined;
 
-        // 3. 根據 AUTH_PIPE 決定判斷邏輯
-        const isAdmin = await checkAdminWithDualPipe(userId, email, user?.publicMetadata);
+        try {
+            // 從 Server 拿取完整的 User 物件，確保 publicMetadata 最新
+            const client = await clerkClient();
+            const user = await client.users.getUser(userId);
+            if (!email) {
+                email = user.emailAddresses[0]?.emailAddress;
+            }
+            publicMetadata = user.publicMetadata;
+        } catch (e) {
+            console.warn("[Auth] 無法從 Clerk 取得詳細資料", e);
+        }
 
-        if (!isAdmin) {
+        const userRole = await checkRoleWithDualPipe(userId, email, publicMetadata);
+
+        if (userRole !== 'system_admin' && userRole !== 'store_admin') {
             return {
                 success: false,
                 error: "無權限執行此操作",
@@ -42,14 +51,20 @@ export async function verifyAdminAuth() {
             };
         }
 
+        // 從新 SaaS 架構的 appAccess 欄位讀取相片館 slug
+        const appAccess = publicMetadata?.appAccess as Record<string, string> | undefined;
+        const tenantSlug = appAccess?.photo_slug ?? (publicMetadata?.tenantSlug as string | undefined);
+
         return {
             success: true,
             userId,
-            email
+            email,
+            role: userRole,
+            tenantSlug
         };
 
-    } catch (error) {
-        console.error("驗證過程發生錯誤:", error);
+    } catch (error: any) {
+        console.error("驗證過程發生錯誤:", error?.message, error?.stack);
         return {
             success: false,
             error: "驗證失敗",
@@ -59,44 +74,35 @@ export async function verifyAdminAuth() {
 }
 
 /**
- * 雙水管核心判斷函式
- * 根據 AUTH_PIPE 環境變數依序嘗試兩個管道
+ * 雙水管核心判斷函式 (對齊口袋預約的新角色邏輯)
  */
-async function checkAdminWithDualPipe(
+async function checkRoleWithDualPipe(
     userId: string,
     email: string | undefined,
     publicMetadata: Record<string, unknown> | undefined
-): Promise<boolean> {
+): Promise<UserRole | null> {
 
     const checkClerkPipe = () => checkClerkMetadata(publicMetadata);
-    const checkFirebasePipe = () => checkFirestoreAdmin(userId, email);
+    const checkFirebasePipe = () => checkFirestoreRole(userId, email);
 
     switch (AUTH_PIPE) {
         case "clerk-only":
-            // 只用 Clerk，不查 Firestore
             return checkClerkPipe();
-
         case "firebase-only":
-            // 只用 Firestore，不查 Clerk
             return checkFirebasePipe();
-
         case "firebase":
-            // Firestore 優先，Clerk 備援
             const fbResult = await checkFirebasePipe();
-            if (fbResult) return true;
-            console.log("[Auth] Firestore 未找到管理員，回退至 Clerk Metadata...");
+            if (fbResult === 'system_admin' || fbResult === 'store_admin') return fbResult;
             return checkClerkPipe();
-
         case "clerk":
         default:
-            // Clerk Metadata 優先，Firestore 備援（預設）
-            const clerkResult = await checkClerkPipe();
-            if (clerkResult) return true;
-            console.log("[Auth] Clerk Metadata 未標記，回退至 Firestore...");
+            const clerkResult = checkClerkPipe();
+            if (clerkResult === 'system_admin' || clerkResult === 'store_admin') return clerkResult;
+
             const firestoreResult = await checkFirebasePipe();
-            // 若 Firestore 確認是管理員，觸發非同步同步（補水管 A）
-            if (firestoreResult) {
-                syncRoleToClerk(userId).catch(err =>
+            // 若 Firestore 驗證過，將角色同步回寫 Clerk publicMetadata
+            if (firestoreResult === 'system_admin' || firestoreResult === 'store_admin') {
+                syncRoleToClerk(userId, firestoreResult).catch(err =>
                     console.error("[Auth] Clerk Metadata 同步失敗:", err)
                 );
             }
@@ -104,70 +110,56 @@ async function checkAdminWithDualPipe(
     }
 }
 
-/**
- * 水管 A：讀取 Clerk publicMetadata
- * 速度最快，不需查詢資料庫
- */
 function checkClerkMetadata(
     publicMetadata: Record<string, unknown> | undefined
-): boolean {
-    return publicMetadata?.role === "admin";
+): UserRole | null {
+    const role = publicMetadata?.role as string;
+    if (role === 'system_admin' || role === 'admin') return 'system_admin';
+    if (role === 'store_admin') return 'store_admin';
+    return null;
 }
 
-/**
- * 水管 B：查詢 Firestore admins 集合
- * 完全自主，不依賴第三方
- */
-async function checkFirestoreAdmin(
+async function checkFirestoreRole(
     userId: string,
     email: string | undefined
-): Promise<boolean> {
+): Promise<UserRole | null> {
     try {
         const adminDb = getFirestore(getAdminApp());
 
-        // 先比對 clerkUserId
-        const snapById = await adminDb.collection("admins")
-            .where("clerkUserId", "==", userId)
-            .limit(1)
-            .get();
-        if (!snapById.empty) return true;
-
-        if (email) {
-            // 再比對 Email
-            const snapByEmail = await adminDb.collection("admins")
-                .where("email", "==", email.toLowerCase())
-                .limit(1)
-                .get();
-            if (!snapByEmail.empty) return true;
-
-            // 硬編碼超級管理員清單
-            const superAdmins = [
-                "tony.hotmail@gmail.com",
-                "tony7777777@gmail.com"
-            ];
-            if (superAdmins.includes(email.toLowerCase())) return true;
+        // 使用 clerkUserId 比對
+        const snapById = await adminDb.collection("admins").where("clerkUserId", "==", userId).limit(1).get();
+        if (!snapById.empty) {
+            const data = snapById.docs[0].data();
+            if (data.role === 'system_admin' || data.role === 'admin') return 'system_admin';
+            if (data.role === 'store_admin') return 'store_admin';
         }
 
-        return false;
-    } catch (error) {
-        console.error("[Auth] Firestore 管理員查詢失敗:", error);
-        return false;
+        // 使用 email 比對
+        if (email) {
+            const snapByEmail = await adminDb.collection("admins").where("email", "==", email.toLowerCase()).limit(1).get();
+            if (!snapByEmail.empty) {
+                const data = snapByEmail.docs[0].data();
+                if (data.role === 'system_admin' || data.role === 'admin') return 'system_admin';
+                if (data.role === 'store_admin') return 'store_admin';
+            }
+        }
+
+        return null;
+    } catch (error: any) {
+        // ★ 修復 500 錯誤的核心：發生 Firebase 拒絕存取時，平穩回傳 null，不再因為 throw Error 導致崩潰
+        console.error("[Auth] Firestore 管理員查詢失敗 (可能憑證錯誤等):", error?.code, error?.message);
+        return null;
     }
 }
 
-/**
- * 自動同步：當 Firestore 確認是管理員但 Clerk Metadata 尚未標記時，
- * 自動將 role: 'admin' 寫入 Clerk publicMetadata，為下次登入備妥水管 A
- */
-async function syncRoleToClerk(userId: string): Promise<void> {
+async function syncRoleToClerk(userId: string, newRole: string): Promise<void> {
     try {
         const client = await clerkClient();
         await client.users.updateUserMetadata(userId, {
-            publicMetadata: { role: "admin" }
+            publicMetadata: { role: newRole }
         });
-        console.log(`[Auth] ✅ Clerk Metadata 同步完成 (userId: ${userId})`);
+        console.log(`[Auth] ✅ Clerk Metadata 同步完成 (userId: ${userId}, role: ${newRole})`);
     } catch (error) {
         console.error("[Auth] ❌ Clerk Metadata 同步失敗:", error);
-        throw error;
     }
 }

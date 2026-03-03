@@ -9,6 +9,7 @@ import { accessConfig } from "@/lib/config";
 import { Loader2, Trash2, Search, Image as ImageIcon, Maximize2, RotateCcw, AlertTriangle, ChevronDown } from "lucide-react";
 import clsx from "clsx";
 import Lightbox from "./Lightbox";
+import { useParams } from "next/navigation";
 
 // 回收區保留天數
 const RECYCLE_DAYS = 30;
@@ -24,6 +25,7 @@ function calcDaysLeft(deletedAt: string | undefined): number {
 
 // ─── 回收區面板（獨立組件，按需展開載入）────────────────────
 function RecycleBin({ onRestored }: { onRestored: () => void }) {
+    const { slug } = useParams() as { slug: string };
     const [open, setOpen] = useState(false);
     const [items, setItems] = useState<(PortfolioItem & { daysLeft?: number })[]>([]);
     const [loading, setLoading] = useState(false);
@@ -34,7 +36,7 @@ function RecycleBin({ onRestored }: { onRestored: () => void }) {
     const load = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await fetch("/api/recycle");
+            const res = await fetch(`/api/recycle?tenantSlug=${slug}`);
             const data = await res.json();
             if (data.success) {
                 setItems(data.items);
@@ -73,7 +75,7 @@ function RecycleBin({ onRestored }: { onRestored: () => void }) {
         if (selectedIds.size === 0) return;
         setWorking(true);
         try {
-            await fetch("/api/recycle", {
+            await fetch(`/api/recycle?tenantSlug=${slug}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ ids: Array.from(selectedIds) }),
@@ -95,7 +97,7 @@ function RecycleBin({ onRestored }: { onRestored: () => void }) {
         setWorking(true);
         try {
             const idList = Array.from(selectedIds).join(",");
-            await fetch(`/api/recycle?ids=${idList}`, { method: "DELETE" });
+            await fetch(`/api/recycle?ids=${idList}&tenantSlug=${slug}`, { method: "DELETE" });
             setSelectedIds(new Set());
             await load();
         } catch (e) {
@@ -276,6 +278,7 @@ function RecycleBin({ onRestored }: { onRestored: () => void }) {
 
 // ─── 主組件 WorkManager ────────────────────────────────────
 export default function WorkManager() {
+    const { slug } = useParams() as { slug: string };
     const [items, setItems] = useState<PortfolioItem[]>([]);
     const [selectedItem, setSelectedItem] = useState<PortfolioItem | null>(null);
     const [loading, setLoading] = useState(true);
@@ -315,7 +318,7 @@ export default function WorkManager() {
         setLoading(true);
         try {
             const response = await fetch(
-                `/api/works/paginate?page=${page}&pageSize=${pageSize}&category=${selectedCategory}`
+                `/api/works/paginate?page=${page}&pageSize=${pageSize}&category=${selectedCategory}&tenantSlug=${slug}`
             );
             if (!response.ok) throw new Error("Failed to fetch");
             const result = await response.json();
@@ -334,7 +337,7 @@ export default function WorkManager() {
 
     const loadCategoryCounts = async () => {
         try {
-            const tenantId = accessConfig.tenantId || "default";
+            const tenantId = slug;
             const catsQ = query(
                 collection(db, "categories"),
                 where("tenantId", "==", tenantId),
@@ -377,7 +380,7 @@ export default function WorkManager() {
         if (!confirm("確定要將這件作品移入回收區嗎？30 天內可復原，30 天後將自動永久刪除。")) return;
         setDeletingId(id);
         try {
-            const res = await fetch("/api/recycle", {
+            const res = await fetch(`/api/recycle?tenantSlug=${slug}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ ids: [id] }),
@@ -398,7 +401,7 @@ export default function WorkManager() {
         if (!confirm(`確定要將選取的 ${selectedIds.size} 件作品移入回收區嗎？30 天內可復原。`)) return;
         setIsBatchRecycling(true);
         try {
-            const res = await fetch("/api/recycle", {
+            const res = await fetch(`/api/recycle?tenantSlug=${slug}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ ids: Array.from(selectedIds) }),

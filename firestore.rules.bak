@@ -78,12 +78,10 @@ service cloud.firestore {
                       isSystemAdmin() ||
                       resource.data.tenantId == request.auth.token.email);
 
-      // 自己可以建立（但角色只能是 customer），授權 Email 與系統管理員也可建立
-      allow create: if (request.auth != null &&
+      // 自己可以建立（但角色只能是 customer）
+      allow create: if request.auth != null &&
                        request.auth.uid == userId &&
-                       request.resource.data.role == 'customer') ||
-                       isAuthorizedEmail() || 
-                       isSystemAdmin();
+                       request.resource.data.role == 'customer';
 
       // 自己可以更新自己的非角色欄位；店長可以更新自己員工；授權 Email 全可寫
       allow update: if request.auth != null &&
@@ -113,14 +111,14 @@ service cloud.firestore {
     // stores 集合（商店資料）
     // =============================================
     match /stores/{storeId} {
-      // 公開讀取：未登入用戶也可瀏覽店家資訊（預約大廳頁面需要）
-      allow read: if true;
+      // 已登入使用者皆可讀取商店資訊
+      allow read: if isAuthenticated();
 
-      // 只有授權 Email 或 系統管理員 可以新增 / 刪除商店
-      allow create, delete: if isAuthorizedEmail() || isSystemAdmin();
+      // 只有授權 Email（系統管理員）可以新增 / 刪除商店
+      allow create, delete: if isAuthorizedEmail();
 
-      // 授權 Email、系統管理員，或商店擁有者可以更新商店資訊
-      allow update: if isAuthorizedEmail() || isSystemAdmin() ||
+      // 授權 Email 或商店擁有者可以更新商店資訊
+      allow update: if isAuthorizedEmail() ||
                        (isAuthenticated() &&
                         resource.data.ownerEmail == request.auth.token.email);
     }
@@ -138,8 +136,8 @@ service cloud.firestore {
     // services 集合（服務項目 / 課程 / 商品）
     // =============================================
     match /services/{serviceId} {
-      // 公開讀取：未登入用戶也可瀏覽服務清單（預約流程需要）
-      allow read: if true;
+      // 已登入使用者皆可讀取服務（預約需要）
+      allow read: if isAuthenticated();
 
       // 授權 Email 或店長（tenantId 符合）可以新增服務
       allow create: if isAuthorizedEmail() ||
@@ -147,54 +145,15 @@ service cloud.firestore {
 
       // 授權 Email 或服務所屬店長可以更新/刪除服務
       allow update, delete: if isAuthorizedEmail() ||
-                               (isAuthenticated() && resource.data.tenantId == request.auth.token.email);
+                                (isAuthenticated() && resource.data.tenantId == request.auth.token.email);
     }
 
     // =============================================
-    // appointments 集合（預約紀錄）
-    // =============================================
-    match /appointments/{appointmentId} {
-      // 任何人（含未登入）皆可建立預約（客戶送出預約不需強制登入）
-      allow create: if true;
-
-      // 允許讀取：授權 Email、系統管理員、店長、或已綁定的客戶本人
-      allow read: if isAuthenticated() &&
-                     (isAuthorizedEmail() ||
-                      isSystemAdmin() ||
-                      resource.data.tenantId == request.auth.token.email ||
-                      resource.data.tenantId == request.auth.uid ||
-                      resource.data.customerUserId == request.auth.uid);
-
-      // 允許更新：授權 Email、系統管理員、店長、或客戶首次綁定自己
-      allow update: if isAuthenticated() &&
-                       (isAuthorizedEmail() ||
-                        isSystemAdmin() ||
-                        resource.data.tenantId == request.auth.token.email ||
-                        // 允許已登入客戶首次綁定 customerUserId（僅限欄位不存在時）
-                        (request.resource.data.customerUserId == request.auth.uid &&
-                         !('customerUserId' in resource.data)));
-
-      // 軟刪除（規則5）：不允許 delete，改用 status: cancelled
-      allow delete: if false;
-    }
-
-    // =============================================
-    // system_settings 集合（前台功能設定，如分享按鈕、時間軸等）
-    // =============================================
-    match /system_settings/{settingId} {
-      // 所有人可讀取（前台需要載入設定，不需登入）
-      allow read: if true;
-      // 只有管理員或授權 Email 可以修改
-      allow write: if isAdmin() || isAuthorizedEmail();
-    }
-
-    // =============================================
-    // bookings 集合（舊版預約紀錄，供 portfolio 系統暫用）
+    // bookings 集合（預約紀錄，尚未開發，暫時寬鬆）
     // =============================================
     match /bookings/{bookingId} {
       allow read, write: if isAuthenticated();
     }
-
 
     // =============================================
     // 預設規則：禁止所有其他未明確定義的集合

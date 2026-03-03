@@ -31,21 +31,8 @@ export async function POST(request: NextRequest) {
         const contentHash = formData.get("contentHash") as string;
         const photoDate = formData.get("photoDate") as string | null; // EXIF 拍攝時間（選填）
 
-        // 決定租戶隔離 (Multi-tenancy) 的 tenantId
-        // 第一階段：先接受前端傳來的 tenantId（或預設值）。
-        // 第二階段：當引入 Slug 時，如果是 store_admin，將強制覆蓋為其專屬的商店 ID。
-        const formTenantId = formData.get("tenantId") as string;
-        let tenantId = formTenantId || env.NEXT_PUBLIC_TENANT_ID;
-
-        // [安全防護] 強迫覆蓋：store_admin 只能上傳到自己的分店
-        if (authResult.role === "store_admin") {
-            if (!authResult.tenantSlug) {
-                return NextResponse.json({ success: false, error: "未授權的操作：帳號缺乏分店標記" }, { status: 403 });
-            }
-            tenantId = authResult.tenantSlug;
-        } else if (authResult.role !== "system_admin") {
-            return NextResponse.json({ success: false, error: "未授權的操作" }, { status: 403 });
-        }
+        // 優先使用前端傳來的 tenantId，若無則使用系統預設
+        const tenantId = (formData.get("tenantId") as string) || env.NEXT_PUBLIC_TENANT_ID;
 
         if (!file) {
             return NextResponse.json({ success: false, error: "未提供檔案" }, { status: 400 });
@@ -68,9 +55,7 @@ export async function POST(request: NextRequest) {
                 description,
                 photoDate: photoDate || undefined, // 傳遞 EXIF 拍攝時間
             },
-            tenantId,
-            authResult.userId!,
-            authResult.role!
+            tenantId
         );
 
         // 因為 Service 目前介面不包含 title，我需要額外更新 title
@@ -87,14 +72,10 @@ export async function POST(request: NextRequest) {
     } catch (error: any) {
         console.error("[API] Upload Error:", error);
 
-        // 🛡️ 錯誤訊息模糊化：避免讓駭客從前端猜測內部攔截機制的細節
-        const errorMessage = error.message?.includes("Unauthorized write")
-            ? "Request Failed"
-            : "上傳失敗";
-
         return NextResponse.json({
             success: false,
-            error: errorMessage,
+            error: "上傳失敗",
+            details: error.message,
         }, { status: 500 });
     }
 }

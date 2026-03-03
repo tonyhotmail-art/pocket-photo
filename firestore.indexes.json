@@ -1,6 +1,42 @@
 {
     "indexes": [
         {
+            "collectionGroup": "portfolio_items",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "tenantSlug",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "createdAt",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "portfolio_items",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "tenantSlug",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "categoryOrder",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "createdAt",
+                    "order": "DESCENDING"
+                },
+                {
+                    "fieldPath": "__name__",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
             "collectionGroup": "categories",
             "queryScope": "COLLECTION",
             "fields": [
