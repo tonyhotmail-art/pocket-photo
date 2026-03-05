@@ -43,19 +43,31 @@ export async function POST() {
         }
 
         // 2. 已確認是管理員，同步 role 與 appAccess 到 Clerk publicMetadata（新 SaaS 架構）
-        const photoSlug = firestoreAdminData.tenantSlug || null;
+        // 先讀取 Clerk 現有的 appAccess，避免覆蓋已正確設定的 photo_slug
+        const existingAppAccess = (user.publicMetadata?.appAccess as Record<string, string>) ?? {};
+
+        // Firebase admins 集合的 tenantSlug 作為補充來源（可能為 undefined）
+        const photoSlugFromFirebase = firestoreAdminData.tenantSlug || undefined;
+
+        // 合併策略：Firebase 有值就用 Firebase 的，否則保留 Clerk 現有的值
+        const mergedAppAccess = photoSlugFromFirebase
+            ? { ...existingAppAccess, photo_slug: photoSlugFromFirebase }
+            : existingAppAccess; // 沒有就完全保留現有的 appAccess，不寫入 null
+
         // client 已在上方宣告，直接使用
         await client.users.updateUserMetadata(userId, {
             publicMetadata: {
+                ...user.publicMetadata,   // 保留所有現有欄位
                 role: firestoreAdminData.role,
-                // 新 SaaS 架構：用 appAccess 儲存各 App 的分店 slug
-                appAccess: photoSlug ? { photo_slug: photoSlug } : null,
+                appAccess: mergedAppAccess,
                 // 保留舊版 tenantSlug 供相容（待全面切換後可移除）
-                tenantSlug: photoSlug
+                tenantSlug: photoSlugFromFirebase ?? (user.publicMetadata?.tenantSlug as string | undefined) ?? null
             }
         });
 
-        console.log(`[SyncRole] ✅ userId: ${userId} 已同步至 Clerk Metadata (role: ${firestoreAdminData.role}, photo_slug: ${photoSlug})`);
+        const finalPhotoSlug = (mergedAppAccess as Record<string, string>).photo_slug ?? null;
+
+        console.log(`[SyncRole] ✅ userId: ${userId} 已同步至 Clerk Metadata (role: ${firestoreAdminData.role}, photo_slug: ${finalPhotoSlug})`);
 
         return NextResponse.json({
             success: true,
