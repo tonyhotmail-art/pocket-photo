@@ -103,12 +103,13 @@ export class PortfolioRepository {
 
     /**
      * 取得單一作品
+     * @param id 作品 ID
      */
     async getItem(id: string): Promise<PortfolioItem | null> {
-        const docRef = adminDb.collection(this.collectionName).doc(id);
-        const snapshot = await docRef.get();
+        const docRef = doc(db, this.collectionName, id);
+        const snapshot = await getDoc(docRef);
 
-        if (!snapshot.exists) return null;
+        if (!snapshot.exists()) return null;
 
         return {
             id: snapshot.id,
@@ -121,8 +122,8 @@ export class PortfolioRepository {
      * @param id 作品 ID
      */
     async deleteItem(id: string): Promise<void> {
-        const docRef = adminDb.collection(this.collectionName).doc(id);
-        await docRef.delete();
+        const docRef = doc(db, this.collectionName, id);
+        await deleteDoc(docRef);
     }
 
     /**
@@ -131,8 +132,8 @@ export class PortfolioRepository {
      * @param data 更新內容
      */
     async updateItem(id: string, data: Partial<PortfolioItem>): Promise<void> {
-        const docRef = adminDb.collection(this.collectionName).doc(id);
-        await docRef.update(data);
+        const docRef = doc(db, this.collectionName, id);
+        await updateDoc(docRef, data);
     }
 
     /**

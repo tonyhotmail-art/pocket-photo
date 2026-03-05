@@ -19,6 +19,7 @@ interface LightboxProps {
     onReachEnd?: () => void;
     categories?: Category[];
     onItemUpdate?: (updatedItem: PortfolioItem) => void;
+    allowSharing?: boolean;
 }
 
 export default function Lightbox({
@@ -32,7 +33,8 @@ export default function Lightbox({
     hasMore,
     onReachEnd,
     categories = [],
-    onItemUpdate
+    onItemUpdate,
+    allowSharing = true
 }: LightboxProps) {
     const [activeItem, setActiveItem] = useState<PortfolioItem | null>(initialItem);
     const [currentIndex, setCurrentIndex] = useState(-1);
@@ -313,72 +315,74 @@ export default function Lightbox({
                             </button>
                         )}
 
-                        {/* 分享按鈕 */}
-                        <div className="relative pointer-events-auto">
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (navigator.share && /Android|iPhone|iPad/i.test(navigator.userAgent)) {
-                                        navigator.share({
-                                            title: activeItem.title || "Kelly Photo 作品集",
-                                            text: activeItem.description || "來看看這張精彩的照片！",
-                                            url: `${window.location.origin}${window.location.pathname}?id=${activeItem.id}`
-                                        }).catch(console.error);
-                                    } else {
-                                        setShowShareMenu(!showShareMenu);
-                                    }
-                                }}
-                                className="text-white/80 hover:text-white p-4 rounded-full transition-all bg-black/40 backdrop-blur-md hover:bg-black/60 shadow-sm border border-white/10"
-                                aria-label="分享"
-                            >
-                                <Share2 size={24} strokeWidth={1.5} />
-                            </button>
-
-                            {/* 電腦版分享選單 */}
-                            {showShareMenu && (
-                                <div
-                                    className="absolute right-0 mt-3 w-56 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 p-2 z-[110] animate-in fade-in zoom-in-95 duration-200"
-                                    onClick={(e) => e.stopPropagation()}
+                        {/* 分享按鈕（受後台設定控制） */}
+                        {allowSharing && (
+                            <div className="relative pointer-events-auto">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (navigator.share && /Android|iPhone|iPad/i.test(navigator.userAgent)) {
+                                            navigator.share({
+                                                title: activeItem.title || "Kelly Photo 作品集",
+                                                text: activeItem.description || "來看看這張精彩的照片！",
+                                                url: `${window.location.origin}${window.location.pathname}?id=${activeItem.id}`
+                                            }).catch(console.error);
+                                        } else {
+                                            setShowShareMenu(!showShareMenu);
+                                        }
+                                    }}
+                                    className="text-white/80 hover:text-white p-4 rounded-full transition-all bg-black/40 backdrop-blur-md hover:bg-black/60 shadow-sm border border-white/10"
+                                    aria-label="分享"
                                 >
-                                    <button
-                                        onClick={() => {
-                                            const url = `${window.location.origin}${window.location.pathname}?id=${activeItem.id}`;
-                                            if (navigator.clipboard) {
-                                                navigator.clipboard.writeText(url);
-                                                setIsCopied(true);
-                                                setTimeout(() => setIsCopied(false), 2000);
-                                            } else {
-                                                alert("您的瀏覽器不支援自動複製，請手動複製網址：" + url);
-                                            }
-                                        }}
-                                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
+                                    <Share2 size={24} strokeWidth={1.5} />
+                                </button>
+
+                                {/* 電腦版分享選單 */}
+                                {showShareMenu && (
+                                    <div
+                                        className="absolute right-0 mt-3 w-56 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 p-2 z-[110] animate-in fade-in zoom-in-95 duration-200"
+                                        onClick={(e) => e.stopPropagation()}
                                     >
-                                        {isCopied ? <X size={18} className="text-green-500" /> : <LinkIcon size={18} />}
-                                        <span className="font-sans font-medium">{isCopied ? "連結已複製！" : "複製照片連結"}</span>
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            const url = encodeURIComponent(`${window.location.origin}${window.location.pathname}?id=${activeItem.id}`);
-                                            window.open(`https://line.me/R/msg/text/?${url}`, "_blank");
-                                        }}
-                                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
-                                    >
-                                        <MessageCircle size={18} className="text-[#00B900]" />
-                                        <span className="font-sans font-medium">分享至 LINE</span>
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            const url = encodeURIComponent(`${window.location.origin}${window.location.pathname}?id=${activeItem.id}`);
-                                            window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, "_blank");
-                                        }}
-                                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
-                                    >
-                                        <div className="w-[18px] h-[18px] flex items-center justify-center bg-[#1877F2] rounded-full text-white text-[10px] font-bold">f</div>
-                                        <span className="font-sans font-medium">分享至 Facebook</span>
-                                    </button>
-                                </div>
-                            )}
-                        </div>
+                                        <button
+                                            onClick={() => {
+                                                const url = `${window.location.origin}${window.location.pathname}?id=${activeItem.id}`;
+                                                if (navigator.clipboard) {
+                                                    navigator.clipboard.writeText(url);
+                                                    setIsCopied(true);
+                                                    setTimeout(() => setIsCopied(false), 2000);
+                                                } else {
+                                                    alert("您的瀏覽器不支援自動複製，請手動複製網址：" + url);
+                                                }
+                                            }}
+                                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
+                                        >
+                                            {isCopied ? <X size={18} className="text-green-500" /> : <LinkIcon size={18} />}
+                                            <span className="font-sans font-medium">{isCopied ? "連結已複製！" : "複製照片連結"}</span>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const url = encodeURIComponent(`${window.location.origin}${window.location.pathname}?id=${activeItem.id}`);
+                                                window.open(`https://line.me/R/msg/text/?${url}`, "_blank");
+                                            }}
+                                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
+                                        >
+                                            <MessageCircle size={18} className="text-[#00B900]" />
+                                            <span className="font-sans font-medium">分享至 LINE</span>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const url = encodeURIComponent(`${window.location.origin}${window.location.pathname}?id=${activeItem.id}`);
+                                                window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, "_blank");
+                                            }}
+                                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
+                                        >
+                                            <div className="w-[18px] h-[18px] flex items-center justify-center bg-[#1877F2] rounded-full text-white text-[10px] font-bold">f</div>
+                                            <span className="font-sans font-medium">分享至 Facebook</span>
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         <button
                             onClick={onClose}

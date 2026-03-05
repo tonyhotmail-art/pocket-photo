@@ -23,7 +23,9 @@ service cloud.firestore {
 
     // 從 pocket_users 集合讀取角色（供 pocket-booking 系統使用）
     function getUserRole(uid) {
-      return get(/databases/$(database)/documents/pocket_users/$(uid)).data.role;
+      return exists(/databases/$(database)/documents/pocket_users/$(uid)) 
+        ? get(/databases/$(database)/documents/pocket_users/$(uid)).data.role 
+        : null;
     }
 
     // 判斷是否為 pocket-booking 系統管理員
@@ -48,15 +50,15 @@ service cloud.firestore {
     // 作品照片集合
     match /portfolio_items/{itemId} {
       // 只有管理員可以讀取「待分類照片」；其它照片公開
-      allow read: if isAdmin() || isAuthorizedEmail() || resource.data.categoryName != '待分類照片';
+      allow read: if isAdmin() || isAuthorizedEmail() || isSystemAdmin() || isStoreAdmin() || resource.data.categoryName != '待分類照片';
       // 只有管理員可以建立、更新、刪除
-      allow create, update, delete: if isAdmin() || isAuthorizedEmail();
+      allow create, update, delete: if isAdmin() || isAuthorizedEmail() || isSystemAdmin() || isStoreAdmin();
     }
 
     // 分類集合
     match /categories/{categoryId} {
-      allow read: if isAdmin() || isAuthorizedEmail() || resource.data.name != '待分類照片';
-      allow create, update, delete: if isAdmin() || isAuthorizedEmail();
+      allow read: if isAdmin() || isAuthorizedEmail() || isSystemAdmin() || isStoreAdmin() || resource.data.name != '待分類照片';
+      allow create, update, delete: if isAdmin() || isAuthorizedEmail() || isSystemAdmin() || isStoreAdmin();
     }
 
     // 管理員名單集合

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { currentUser } from '@clerk/nextjs/server';
+import { auth, clerkClient } from '@clerk/nextjs/server';
 import { adminDb } from '@/lib/firebase-admin';
 import * as admin from 'firebase-admin';
 import { z } from 'zod';
@@ -20,11 +20,13 @@ const applySchema = z.object({
  */
 export async function POST(req: NextRequest) {
     try {
-        // 驗證登入狀態
-        const user = await currentUser();
-        if (!user) {
+        // 驗證登入狀態（使用正確的 auth() + clerkClient() 確保取得最新資料）
+        const { userId: clerkUserId } = await auth();
+        if (!clerkUserId) {
             return NextResponse.json({ success: false, error: '請先登入再提交申請' }, { status: 401 });
         }
+        const client = await clerkClient();
+        const user = await client.users.getUser(clerkUserId);
 
         // 若已有相館（新 SaaS 架構用 appAccess.photo_slug，相容舊版 tenantSlug），不需再申請
         const appAccess = user.publicMetadata?.appAccess as Record<string, string> | undefined;
@@ -74,10 +76,10 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: false, error: `網址代號「${slug}」已被使用，請換一個不同的代號。` }, { status: 400 });
         }
 
-        // 儲存申請到 Firebase
+        // 儲存申請到 Firebase（userId 使用 Clerk 官方 clerkUserId，確保核准時可正確更新 Clerk Metadata）
         const newRef = adminDb.collection('pending_tenants').doc();
         await newRef.set({
-            userId: user.id,
+            userId: clerkUserId,
             email: user.emailAddresses[0]?.emailAddress || contactEmail,
             contactEmail,
             storeName,

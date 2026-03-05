@@ -5,9 +5,12 @@ import { useUser, useClerk } from "@clerk/nextjs";
 import { db, auth as firebaseAuth } from "@/lib/firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { signInWithCustomToken, signOut as firebaseSignOut, onAuthStateChanged } from "firebase/auth";
+import { UserRole } from "@/lib/role-hierarchy";
 
 interface AuthContextType {
-    isAdmin: boolean;
+    userRole: UserRole | null;
+    userTenantSlug: string | null;
+    isStaffRole: boolean;
     isAuthenticated: boolean;
     loading: boolean;
     firebaseReady: boolean;
@@ -20,32 +23,16 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-/**
- * 超級管理員硬編碼清單（與 Server 端一致）
- */
-const SUPER_ADMINS = [
-    "tony.hotmail@gmail.com",
-    "tony7777777@gmail.com"
-];
-
-/**
- * AuthProvider — 雙水管 (Dual-Pipe) 架構 + Firebase 同步登入
- *
- * 水管 A（Clerk Metadata）：讀取 user.publicMetadata.role === 'admin'
- *   → 不需網路請求，最快
- * 水管 B（Firestore）：查詢 admins 集合
- *   → 確認後自動呼叫 /api/admin/sync-role 補水管 A
- *
- * Firebase 同步：Clerk 登入成功後，自動取得 Firebase Custom Token 並登入，
- *   讓 Firestore Security Rules 的 request.auth 有值。
- */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { user, isLoaded } = useUser();
     const { signOut } = useClerk();
-    const [isAdmin, setIsAdmin] = useState(false);
+    const [userRole, setUserRole] = useState<UserRole | null>(null);
+    const [userTenantSlug, setUserTenantSlug] = useState<string | null>(null);
     const [firebaseReady, setFirebaseReady] = useState(false);
     // 防止重複呼叫 firebase-token API
     const firebaseSyncRef = useRef<string | null>(null);
+
+    const isStaffRole = userRole === "system_admin" || userRole === "store_admin";
 
     /**
      * 觸發後端 sync-role API，將管理員標記寫入 Clerk publicMetadata（補水管 A）
@@ -67,31 +54,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const checkFirestorePipe = useCallback(async (
         userId: string,
         email: string | null | undefined
-    ): Promise<boolean> => {
+    ): Promise<UserRole | null> => {
         try {
             // 比對 clerkUserId
             const snapById = await getDocs(
                 query(collection(db, "admins"), where("clerkUserId", "==", userId))
             );
-            if (!snapById.empty) return true;
+            if (!snapById.empty) {
+                const data = snapById.docs[0].data();
+                if (data.role === 'system_admin' || data.role === 'admin') return 'system_admin';
+                if (data.role === 'store_admin') return 'store_admin';
+            }
 
             if (email) {
                 // 比對 Email
                 const snapByEmail = await getDocs(
-                    query(
-                        collection(db, "admins"),
-                        where("email", "==", email.toLowerCase())
-                    )
+                    query(collection(db, "admins"), where("email", "==", email.toLowerCase()))
                 );
-                if (!snapByEmail.empty) return true;
-
-                // 超級管理員清單
-                if (SUPER_ADMINS.includes(email.toLowerCase())) return true;
+                if (!snapByEmail.empty) {
+                    const data = snapByEmail.docs[0].data();
+                    if (data.role === 'system_admin' || data.role === 'admin') return 'system_admin';
+                    if (data.role === 'store_admin') return 'store_admin';
+                }
             }
-            return false;
+            return 'customer';
         } catch (error) {
             console.error("[AuthContext] Firestore 查詢失敗:", error);
-            return false;
+            return null;
         }
     }, []);
 
@@ -102,47 +91,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         userId: string,
         email: string | null | undefined,
         publicMetadata: Record<string, unknown>
-    ) => {
-        // 水管 A：直接讀取 Clerk publicMetadata（O(1)，無網路請求）
-        const clerkPipeResult = publicMetadata?.role === "admin";
-        if (clerkPipeResult) {
-            console.log("[AuthContext] 🔑 水管A（Clerk Metadata）通過");
-            return true;
+    ): Promise<UserRole | null> => {
+
+        // 水管 A：讀 Clerk publicMetadata
+        const pmRole = publicMetadata?.role as string;
+        if (pmRole === 'system_admin' || pmRole === 'admin') {
+            console.log("[AuthContext] 🔑 水管A（Clerk Metadata）通過，角色：system_admin");
+            return 'system_admin';
+        }
+        if (pmRole === 'store_admin') {
+            console.log("[AuthContext] 🔑 水管A（Clerk Metadata）通過，角色：store_admin");
+            return 'store_admin';
         }
 
-        // 水管 B：Firestore 查詢
+        // 水管 B：Firestore
         console.log("[AuthContext] 水管A 未標記，嘗試水管B（Firestore）...");
-        const firestorePipeResult = await checkFirestorePipe(userId, email);
-        if (firestorePipeResult) {
-            console.log("[AuthContext] 🔑 水管B（Firestore）通過，觸發同步補水管A...");
+        const firestoreRole = await checkFirestorePipe(userId, email);
+        if (firestoreRole === 'system_admin' || firestoreRole === 'store_admin') {
+            console.log(`[AuthContext] 🔑 水管B（Firestore）通過，角色：${firestoreRole}，觸發同步補水管A...`);
             // 非同步補水管 A，不阻塞登入流程
             syncRoleToClerk();
-            return true;
+            return firestoreRole;
         }
 
-        console.log("[AuthContext] 兩條水管均未通過");
-        return false;
+        console.log("[AuthContext] 未具備後台權限，判定為一般訪客 (customer)");
+        return 'customer';
     }, [checkFirestorePipe, syncRoleToClerk]);
 
     /**
      * Firebase 同步登入：Clerk 登入後取得 Custom Token 並登入 Firebase
-     * 讓 Firestore rules 的 request.auth 有值
      */
     const syncFirebaseAuth = useCallback(async (clerkUserId: string) => {
-        // 防止對同一個使用者重複呼叫
         if (firebaseSyncRef.current === clerkUserId) return;
         firebaseSyncRef.current = clerkUserId;
 
         try {
             console.log("[AuthContext] 🔥 呼叫 /api/auth/firebase-token 取得 Custom Token...");
             const res = await fetch("/api/auth/firebase-token", { method: "POST" });
-
             if (!res.ok) {
                 console.error("[AuthContext] firebase-token API 回傳錯誤:", res.status);
-                setFirebaseReady(true); // 即使失敗也要設為 ready，避免永遠 loading
+                setFirebaseReady(true);
                 return;
             }
-
             const { token } = await res.json();
             await signInWithCustomToken(firebaseAuth, token);
             console.log("[AuthContext] ✅ Firebase 同步登入成功");
@@ -161,13 +151,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const email = user.emailAddresses[0]?.emailAddress;
             const metadata = (user.publicMetadata ?? {}) as Record<string, unknown>;
 
+            // 從新 SaaS 架構的 appAccess.photo_slug 讀取，相容舊版 tenantSlug
+            const appAccess = metadata.appAccess as Record<string, string> | undefined;
+            const slug = appAccess?.photo_slug ?? (metadata.tenantSlug as string) ?? null;
+            setUserTenantSlug(slug);
+
+            // 如果使用者剛完成登入或同步，且人在首頁，直接將其跳轉回專屬相本管理頁面
+            if (slug && window.location.pathname === '/') {
+                console.log(`[AuthContext] 偵測到已有店鋪綁定 (${slug})，將從首頁自動跳轉...`);
+                window.location.replace(`/${slug}`);
+            }
+
             // 同步 Firebase Auth（讓 Firestore rules 可用）
             syncFirebaseAuth(user.id);
 
             // 檢查管理員資格
-            checkAdminStatus(user.id, email, metadata).then(setIsAdmin);
+            checkAdminStatus(user.id, email, metadata).then(role => setUserRole(role));
         } else {
-            setIsAdmin(false);
+            setUserRole(null);
+            setUserTenantSlug(null);
             setFirebaseReady(true);
             firebaseSyncRef.current = null;
 
@@ -194,7 +196,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
             await signOut();
             await firebaseSignOut(firebaseAuth);
-            setIsAdmin(false);
+            setUserRole(null);
+            setUserTenantSlug(null);
             firebaseSyncRef.current = null;
         } catch (error) {
             console.error("登出失敗:", error);
@@ -205,7 +208,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return (
         <AuthContext.Provider value={{
-            isAdmin,
+            userRole,
+            userTenantSlug,
+            isStaffRole,
             isAuthenticated: !!user,
             loading: !isLoaded || (!!user && !firebaseReady),
             firebaseReady,

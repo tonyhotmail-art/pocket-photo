@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { getAdminAuth } from "@/lib/firebase-admin";
 
 /**
@@ -26,9 +26,10 @@ export async function POST() {
             );
         }
 
-        // 透過 currentUser() 取得完整使用者資料（含 email）
-        const user = await currentUser();
-        const email = user?.emailAddresses?.[0]?.emailAddress || "";
+        // 透過 clerkClient().getUser() 取得完整使用者資料（含 email），避免快取問題
+        const client = await clerkClient();
+        const user = await client.users.getUser(userId);
+        const email = user.emailAddresses?.[0]?.emailAddress || "";
 
         console.log(`[firebase-token] 為 Clerk 使用者 ${userId} 產生 Firebase Custom Token（email: ${email}）`);
 

@@ -34,12 +34,8 @@ function HomeContent() {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [displayLimit, setDisplayLimit] = useState(20);
   const [hasMore, setHasMore] = useState(false);
-  const [pullDistance, setPullDistance] = useState(0);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isWorkManagerEnabled, setIsWorkManagerEnabled] = useState(false); // 延遲載入 WorkManager
   const observerTarget = useRef<HTMLDivElement>(null);
-  const touchStartY = useRef<number>(0);
-  const isAtTop = useRef<boolean>(true);
 
   const { isStaffRole, isAuthenticated, logout, userName, userPhotoUrl, loading: authLoading } = useAuth();
   const { settings: siteSettings } = useSystemSettings(); // 前台功能設定
@@ -130,7 +126,7 @@ function HomeContent() {
     if (selectedTag) {
       q = query(
         collection(db, "portfolio_items"),
-        where("tenantSlug", "==", slug),
+        where("tenantId", "==", slug),
         where("tags", "array-contains", selectedTag),
         orderBy("categoryOrder", "asc"),
         orderBy("createdAt", "desc"),
@@ -139,7 +135,7 @@ function HomeContent() {
     } else if (selectedCategoryName !== "all") {
       q = query(
         collection(db, "portfolio_items"),
-        where("tenantSlug", "==", slug),
+        where("tenantId", "==", slug),
         where("categoryName", "==", selectedCategoryName),
         orderBy("categoryOrder", "asc"),
         orderBy("createdAt", "desc"),
@@ -150,7 +146,7 @@ function HomeContent() {
       if (isStaffRole) {
         q = query(
           collection(db, "portfolio_items"),
-          where("tenantSlug", "==", slug),
+          where("tenantId", "==", slug),
           orderBy("categoryOrder", "asc"),
           orderBy("createdAt", "desc"),
           limit(displayLimit + 1)
@@ -159,7 +155,7 @@ function HomeContent() {
         // 非管理員：由資料庫層級排除「待分類照片」
         q = query(
           collection(db, "portfolio_items"),
-          where("tenantSlug", "==", slug),
+          where("tenantId", "==", slug),
           where("categoryName", "!=", "待分類照片"),
           orderBy("categoryName"), // 必須在首位
           orderBy("categoryOrder", "asc"),
@@ -194,7 +190,7 @@ function HomeContent() {
   // 動態更新網頁標題
   useEffect(() => {
     if (siteSettings && siteSettings.siteName) {
-      document.title = `${siteSettings.siteName} | 作品集`;
+      document.title = `口袋相片 | ${siteSettings.siteName}`;
     }
   }, [siteSettings?.siteName]);
 
@@ -282,37 +278,6 @@ function HomeContent() {
     }
   }, [items, loading, categories, selectedCategoryName]);
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (window.scrollY === 0) {
-      touchStartY.current = e.touches[0].clientY;
-      isAtTop.current = true;
-    } else {
-      isAtTop.current = false;
-    }
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isAtTop.current || isRefreshing) return;
-    const currentY = e.touches[0].clientY;
-    const distance = currentY - touchStartY.current;
-    if (distance > 0 && window.scrollY === 0) {
-      const dampedDistance = Math.min(distance * 0.4, 80);
-      setPullDistance(dampedDistance);
-    }
-  };
-
-  const handleTouchEnd = async () => {
-    if (pullDistance > 60 && !isRefreshing) {
-      setIsRefreshing(true);
-      setPullDistance(40);
-      setDisplayLimit(20);
-      await new Promise(resolve => setTimeout(resolve, 800));
-      setIsRefreshing(false);
-      setPullDistance(0);
-    } else {
-      setPullDistance(0);
-    }
-  };
 
   const handleItemUpdate = (updatedItem: PortfolioItem) => {
     setItems(prevItems =>
@@ -325,36 +290,12 @@ function HomeContent() {
 
   return (
     <main
-      className="min-h-screen bg-[#F8F7F3] text-[#1A1A1A] font-serif transition-transform duration-200"
-      style={{ transform: pullDistance > 0 ? `translateY(${pullDistance}px)` : 'none' }}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
+      className="min-h-screen bg-[#F8F7F3] text-[#1A1A1A] font-serif"
     >
-      {/* 下拉圖示 */}
-      {pullDistance > 10 && (
-        <div
-          className="fixed top-0 left-0 right-0 flex justify-center items-center pointer-events-none z-50 transition-opacity"
-          style={{
-            height: `${pullDistance}px`,
-            opacity: Math.min(pullDistance / 40, 1),
-            transform: `translateY(-${Math.max(0, 40 - pullDistance)}px)`
-          }}
-        >
-          <div className={clsx(
-            "bg-white shadow-lg rounded-full p-2 text-gray-400 transition-transform",
-            isRefreshing ? "animate-spin" : ""
-          )}
-            style={{ transform: !isRefreshing ? `rotate(${pullDistance * 5}deg)` : 'none' }}
-          >
-            <Loader2 size={20} />
-          </div>
-        </div>
-      )}
 
       {/* Mobile Top Bar */}
       <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#F8F7F3]/80 backdrop-blur-md border-b border-gray-100 z-30 flex items-center justify-center px-6">
-        <h1 className="text-xl font-bold tracking-tighter">KELLY PHOTO</h1>
+        <h1 className="text-xl font-bold tracking-tighter">{siteSettings?.siteName || "Pocket Photo"}</h1>
       </div>
 
       <Sidebar
@@ -409,15 +350,19 @@ function HomeContent() {
           </div>
         )}
 
-        <footer className="py-20 px-6 md:px-12 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center md:items-end gap-8 opacity-50">
-          <div className="text-center md:text-left">
-            <h4 className="text-xl font-bold tracking-tighter">KELLY PHOTO</h4>
-            <p className="text-xs uppercase tracking-widest mt-2">Makeup Artist Portfolio</p>
+        <footer className="fixed bottom-0 left-0 right-0 lg:left-[100px] z-30 px-6 md:px-12 py-3 border-t border-gray-200/60 bg-[#F8F7F3]/80 backdrop-blur-md flex flex-row justify-between items-center">
+          <div className="flex items-center gap-2">
+            <h4 className="text-sm font-bold tracking-tight">Pocket Photo 口袋相片</h4>
           </div>
-          <p className="text-[10px] uppercase tracking-tighter">
-            © {new Date().getFullYear()} DESIGNED BY TONY / ALL RIGHTS RESERVED
-          </p>
+          <div className="text-right">
+            <p className="text-[10px] text-gray-400 leading-tight">口袋城市，程式隨選即用</p>
+            <p className="text-[9px] text-gray-300 tracking-tight">
+              © {new Date().getFullYear()} Pocket App City
+            </p>
+          </div>
         </footer>
+        {/* 固定頁底的佔位空間 */}
+        <div className="h-14" />
       </div>
 
       <Lightbox
@@ -454,25 +399,16 @@ function HomeContent() {
         }}
         categories={categories}
         onItemUpdate={handleItemUpdate}
+        allowSharing={siteSettings.allowSharing}
       />
 
       {/* 右下角功能按鈕組群 - 登入者圖示置頂 */}
       <div className="fixed bottom-6 right-6 md:bottom-8 md:right-8 flex flex-col gap-3 z-40 items-center">
 
-        {/* 0. 登入者圖示（最上方）*/}
-        {isStaffRole ? (
-          /* 管理員：自訂使用者卡片 */
+        {/* 0. 管理員圖示（最上方）— 僅管理員可見 */}
+        {isStaffRole && (
           <UserCardDropdown size={44} afterSignOutUrl="/" />
-        ) : isAuthenticated ? (
-          /* 一般客戶：登出按鈕 */
-          <button
-            onClick={() => logout()}
-            className="w-11 h-11 shadow-xl rounded-full hover:scale-110 transition-transform flex items-center justify-center border bg-white text-[#555555] border-gray-200"
-            title="登出"
-          >
-            <LogOut className="w-5 h-5" strokeWidth={1.5} />
-          </button>
-        ) : null}
+        )}
 
         {/* 1. 分享作品集（由後台設定控制是否顯示）*/}
         {siteSettings.allowSharing && (
@@ -498,18 +434,20 @@ function HomeContent() {
           </button>
         )}
 
-        {/* 2. 聯繫 LINE@ */}
-        <a
-          href="https://lin.ee/aS8aSlB"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="w-11 h-11 bg-[#00B900] text-white shadow-xl rounded-full hover:scale-110 transition-transform flex items-center justify-center"
-          title="聯繫作者 LINE@"
-        >
-          <MessageCircle className="w-5 h-5" strokeWidth={2} />
-        </a>
+        {/* 2. 聯繫 LINE@（僅在後台有設定時顯示） */}
+        {siteSettings.lineUrl && (
+          <a
+            href={siteSettings.lineUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-11 h-11 bg-[#00B900] text-white shadow-xl rounded-full hover:scale-110 transition-transform flex items-center justify-center"
+            title="聯繫 LINE@"
+          >
+            <MessageCircle className="w-5 h-5" strokeWidth={2} />
+          </a>
+        )}
 
-        {/* 3. 管理員設定入口（最下方） */}
+        {/* 3. 管理員設定入口（最下方）— 管理員可見，未登入者可見登入按鈕 */}
         {isStaffRole ? (
           <button
             onClick={handleAdminToggle}

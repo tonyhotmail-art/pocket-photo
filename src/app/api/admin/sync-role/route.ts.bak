@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { auth, currentUser, clerkClient } from "@clerk/nextjs/server";
 import { getAdminApp } from "@/lib/firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 
@@ -16,24 +16,8 @@ export async function POST() {
             return NextResponse.json({ error: "未登入" }, { status: 401 });
         }
 
-        const client = await clerkClient();
-        const user = await client.users.getUser(userId);
-        const email = user.emailAddresses[0]?.emailAddress;
-
-        // ⚠️ 超管保護機制：這些帳號的 role 永遠固定為 system_admin，任何程式都不可降級
-        const SUPER_ADMIN_EMAILS = ["tony.hotmail@gmail.com", "tony7777777@gmail.com"];
-        if (email && SUPER_ADMIN_EMAILS.includes(email.toLowerCase())) {
-            // client 已在上方宣告，直接使用即可
-            const currentMeta = user.publicMetadata ?? {};
-            // 只有目前不是 system_admin 時才更新（避免不必要的 API 呼叫）
-            if (currentMeta.role !== "system_admin") {
-                await client.users.updateUserMetadata(userId, {
-                    publicMetadata: { ...currentMeta, role: "system_admin" }
-                });
-                console.log(`[SyncRole] 🔒 超管保護：${email} 的 role 已強制鎖定為 system_admin`);
-            }
-            return NextResponse.json({ success: true, message: "超管身分已確認", userId, email });
-        }
+        const user = await currentUser();
+        const email = user?.emailAddresses[0]?.emailAddress;
 
         // 1. 先確認 Firestore 中儲存的權限與店鋪綁定資料（水管 B 最終確認）
         const firestoreAdminData = await checkFirestoreAdmin(userId, email);
@@ -44,7 +28,7 @@ export async function POST() {
 
         // 2. 已確認是管理員，同步 role 與 appAccess 到 Clerk publicMetadata（新 SaaS 架構）
         const photoSlug = firestoreAdminData.tenantSlug || null;
-        // client 已在上方宣告，直接使用
+        const client = await clerkClient();
         await client.users.updateUserMetadata(userId, {
             publicMetadata: {
                 role: firestoreAdminData.role,

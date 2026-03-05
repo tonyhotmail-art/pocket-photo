@@ -56,8 +56,9 @@ export default function AdminManagement() {
         e.preventDefault();
         setSubmitting(true);
         try {
-            const data: Partial<AdminRecord> = {
+            const data: Partial<AdminRecord> & { role?: string } = {
                 type,
+                role: 'system_admin', // 明確賦予最高管理員角色，配合主副 ID 架構
                 createdAt: serverTimestamp() as any, // serverTimestamp 在寫入時需轉型以符合 Partial
             };
 
@@ -114,6 +115,7 @@ export default function AdminManagement() {
                         <p className="text-xs text-gray-400 mt-0.5">控制能進入此後台的人員名單</p>
                     </div>
                 </div>
+                {/* [暫時隱藏] 新增管理員功能 — 未來有需要再開放
                 <button
                     onClick={() => setIsAdding(!isAdding)}
                     className={clsx(
@@ -124,6 +126,7 @@ export default function AdminManagement() {
                     {isAdding ? <X size={16} /> : <UserPlus size={16} />}
                     {isAdding ? "取消新增" : "新增管理員"}
                 </button>
+                */}
             </div>
 
             {/* 新增表單區塊 */}
@@ -223,7 +226,6 @@ export default function AdminManagement() {
                             <th className="px-6 py-4">類型</th>
                             <th className="px-6 py-4">識別資訊</th>
                             <th className="px-6 py-4">加入時間</th>
-                            <th className="px-6 py-4 text-right">操作</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
@@ -300,6 +302,7 @@ export default function AdminManagement() {
                                             <span>加入於 {(admin.createdAt as any)?.toDate?.()?.toLocaleDateString() || (admin.createdAt as any)?.toDate?.()?.toLocaleDateString() || "近期"}</span>
                                         </div>
                                     </td>
+                                    {/* [暫時隱藏] 刪除管理員功能 — 未來有需要再開放
                                     <td className="px-6 py-4 text-right">
                                         <button
                                             onClick={() => handleDelete(admin.id, admin.email || admin.accountName || "管理員")}
@@ -309,6 +312,7 @@ export default function AdminManagement() {
                                             <Trash2 size={16} />
                                         </button>
                                     </td>
+                                    */}
                                 </tr>
                             ))
                         )}

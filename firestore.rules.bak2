@@ -48,15 +48,15 @@ service cloud.firestore {
     // 作品照片集合
     match /portfolio_items/{itemId} {
       // 只有管理員可以讀取「待分類照片」；其它照片公開
-      allow read: if isAdmin() || isAuthorizedEmail() || resource.data.categoryName != '待分類照片';
+      allow read: if isAdmin() || isAuthorizedEmail() || isSystemAdmin() || isStoreAdmin() || resource.data.categoryName != '待分類照片';
       // 只有管理員可以建立、更新、刪除
-      allow create, update, delete: if isAdmin() || isAuthorizedEmail();
+      allow create, update, delete: if isAdmin() || isAuthorizedEmail() || isSystemAdmin() || isStoreAdmin();
     }
 
     // 分類集合
     match /categories/{categoryId} {
-      allow read: if isAdmin() || isAuthorizedEmail() || resource.data.name != '待分類照片';
-      allow create, update, delete: if isAdmin() || isAuthorizedEmail();
+      allow read: if isAdmin() || isAuthorizedEmail() || isSystemAdmin() || isStoreAdmin() || resource.data.name != '待分類照片';
+      allow create, update, delete: if isAdmin() || isAuthorizedEmail() || isSystemAdmin() || isStoreAdmin();
     }
 
     // 管理員名單集合

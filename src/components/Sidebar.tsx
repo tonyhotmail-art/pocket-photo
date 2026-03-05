@@ -49,7 +49,7 @@ export default function Sidebar({
                                     : "text-gray-400 hover:text-gray-600 hover:bg-gray-100/50"
                             )}
                         >
-                            全部作品 / ALL
+                            ALL
                         </button>
 
                     </div>
@@ -87,7 +87,7 @@ export default function Sidebar({
                             : "bg-white text-gray-400 border-gray-100"
                     )}
                 >
-                    ALL 全部
+                    ALL
                 </button>
                 {categories.map((category) => (
                     <button

@@ -12,6 +12,7 @@ import { useParams } from "next/navigation";
 export interface SystemSettingsData {
     tenantId: string;
     siteName?: string;
+    lineUrl?: string;
     allowSharing: boolean;
     showTimeline: boolean;
     updatedAt?: any;
@@ -20,6 +21,7 @@ export interface SystemSettingsData {
 // 預設值
 const DEFAULT_SETTINGS: Omit<SystemSettingsData, "tenantId"> = {
     siteName: "KELLY PHOTO",
+    lineUrl: "",
     allowSharing: true,
     showTimeline: false,
 };
@@ -59,13 +61,15 @@ export default function SystemSettings() {
     const { settings, loading } = useSystemSettings();
     const [saving, setSaving] = useState(false);
     const [localSiteName, setLocalSiteName] = useState("");
+    const [localLineUrl, setLocalLineUrl] = useState("");
 
     // 當數據從後端同步時更新本地狀態
     useEffect(() => {
         if (settings.siteName) {
             setLocalSiteName(settings.siteName);
         }
-    }, [settings.siteName]);
+        setLocalLineUrl(settings.lineUrl || "");
+    }, [settings.siteName, settings.lineUrl]);
 
     const updateValue = async (key: keyof Omit<SystemSettingsData, "tenantId" | "updatedAt">, value: any) => {
         setSaving(true);
@@ -129,16 +133,12 @@ export default function SystemSettings() {
                         {localSiteName.length}/30
                     </span>
                 </div>
-                <div className="relative group">
+                <div className="flex gap-2">
                     <input
                         type="text"
                         value={localSiteName}
                         maxLength={30}
                         onChange={(e) => setLocalSiteName(e.target.value)}
-                        onBlur={() => {
-                            const trimmed = localSiteName.trim().substring(0, 30);
-                            if (trimmed !== settings.siteName) updateValue("siteName", trimmed);
-                        }}
                         onKeyDown={(e) => {
                             if (e.key === "Enter") {
                                 const trimmed = localSiteName.trim().substring(0, 30);
@@ -146,14 +146,66 @@ export default function SystemSettings() {
                             }
                         }}
                         placeholder="請輸入相本名稱"
-                        className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900/5 focus:border-gray-900 transition-all font-serif"
+                        className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900/5 focus:border-gray-900 transition-all font-serif"
                     />
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity">
-                        按 Enter 儲存
-                    </div>
+                    <button
+                        onClick={() => {
+                            const trimmed = localSiteName.trim().substring(0, 30);
+                            if (trimmed !== settings.siteName) updateValue("siteName", trimmed);
+                        }}
+                        disabled={saving || localSiteName.trim() === settings.siteName}
+                        className={clsx(
+                            "px-5 py-3 rounded-xl text-sm font-bold transition-all whitespace-nowrap",
+                            localSiteName.trim() !== settings.siteName
+                                ? "bg-gray-900 text-white hover:bg-black active:scale-95 shadow-md"
+                                : "bg-gray-100 text-gray-300 cursor-not-allowed"
+                        )}
+                    >
+                        {saving ? "儲存中..." : "更新"}
+                    </button>
                 </div>
                 <p className="mt-2 text-[10px] text-gray-400 leading-relaxed">
                     💡 建議控制在 15 字以內以獲得最佳側邊欄垂直排版效果。上限為 30 字。
+                </p>
+            </div>
+
+            {/* LINE@ 帳號設定 */}
+            <div className="px-6 py-6 border-b border-gray-50 bg-white">
+                <div className="flex items-center justify-between mb-3">
+                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest">LINE@ 帳號連結</label>
+                </div>
+                <div className="flex gap-2">
+                    <input
+                        type="text"
+                        value={localLineUrl}
+                        onChange={(e) => setLocalLineUrl(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                                const trimmed = localLineUrl.trim();
+                                if (trimmed !== (settings.lineUrl || "")) updateValue("lineUrl", trimmed);
+                            }
+                        }}
+                        placeholder="例如：https://lin.ee/xxxxxxx"
+                        className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900/5 focus:border-gray-900 transition-all font-mono"
+                    />
+                    <button
+                        onClick={() => {
+                            const trimmed = localLineUrl.trim();
+                            if (trimmed !== (settings.lineUrl || "")) updateValue("lineUrl", trimmed);
+                        }}
+                        disabled={saving || localLineUrl.trim() === (settings.lineUrl || "")}
+                        className={clsx(
+                            "px-5 py-3 rounded-xl text-sm font-bold transition-all whitespace-nowrap",
+                            localLineUrl.trim() !== (settings.lineUrl || "")
+                                ? "bg-[#00B900] text-white hover:bg-[#009900] active:scale-95 shadow-md"
+                                : "bg-gray-100 text-gray-300 cursor-not-allowed"
+                        )}
+                    >
+                        {saving ? "儲存中..." : "更新"}
+                    </button>
+                </div>
+                <p className="mt-2 text-[10px] text-gray-400 leading-relaxed">
+                    💬 設定 LINE@ 連結後，前台會顯示綠色對話按鈕。留空則不顯示。
                 </p>
             </div>
 

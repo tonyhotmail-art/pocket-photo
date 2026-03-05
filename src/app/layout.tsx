@@ -20,14 +20,14 @@ const notoSerifTC = Noto_Serif_TC({
 });
 
 export const metadata: Metadata = {
-  title: "Kelly's Portfolio | 彩妝作品集",
-  description: "專業彩妝造型作品集",
+  title: "口袋相片 | 你的專屬專業相冊平台，與客戶零距離",
+  description: "口袋相片 - 你的專屬專業相冊平台，與客戶零距離",
   openGraph: {
-    title: "Kelly's Portfolio | 彩妝作品集",
-    description: "專業彩妝造型作品集",
+    title: "口袋相片 | 你的專屬專業相冊平台，與客戶零距離",
+    description: "口袋相片 - 你的專屬專業相冊平台，與客戶零距離",
     type: "website",
     locale: "zh_TW",
-    siteName: "Kelly's Portfolio",
+    siteName: "口袋相片",
   },
 };
 

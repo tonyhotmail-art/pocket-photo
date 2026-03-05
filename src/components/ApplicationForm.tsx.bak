@@ -104,7 +104,7 @@ export default function ApplicationForm({ userEmail, userName }: ApplicationForm
                     type="text"
                     value={storeName}
                     onChange={e => handleStoreNameChange(e.target.value)}
-                    placeholder="例如：口袋相片 pocket-photo"
+                    placeholder="例如：Kelly Studio"
                     required
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-white/30 text-sm transition-all"
                 />
@@ -121,7 +121,7 @@ export default function ApplicationForm({ userEmail, userName }: ApplicationForm
                         type="text"
                         value={slug}
                         onChange={e => handleSlugChange(e.target.value)}
-                        placeholder="pocket-photo"
+                        placeholder="kelly-studio"
                         required
                         className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-white/30 text-sm font-mono transition-all"
                     />
@@ -129,7 +129,7 @@ export default function ApplicationForm({ userEmail, userName }: ApplicationForm
                 <p className="text-gray-500 text-xs">只能使用小寫英文字母、數字、連字號（-）</p>
             </div>
 
-            {/* 聯絡 Email（從 Clerk 自動帶入，無法更改） */}
+            {/* 聯絡 Email */}
             <div className="space-y-1.5">
                 <label className="text-sm text-gray-300 font-medium">
                     聯絡 Email <span className="text-rose-400">*</span>
@@ -137,10 +137,10 @@ export default function ApplicationForm({ userEmail, userName }: ApplicationForm
                 <input
                     type="email"
                     value={contactEmail}
-                    readOnly
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-gray-400 text-sm cursor-not-allowed transition-all"
+                    onChange={e => setContactEmail(e.target.value)}
+                    required
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-white/30 text-sm transition-all"
                 />
-                <p className="text-gray-500 text-xs">Email 由您的登入帳號自動帶入，無法修改</p>
             </div>
 
             {/* 送出按鈕 */}

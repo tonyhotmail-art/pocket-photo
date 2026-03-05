@@ -1,0 +1,136 @@
+import { SignInButton, SignUpButton } from "@clerk/nextjs";
+import { currentUser } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
+import { Camera, ShieldCheck, ImagePlus, LogIn } from "lucide-react";
+import ApplicationForm from "@/components/ApplicationForm";
+import NoPermissionActions from "@/components/NoPermissionActions";
+
+export default async function LandingPage({ searchParams }: { searchParams: Promise<{ apply?: string }> }) {
+    const user = await currentUser();
+    const params = await searchParams;
+    const isApplyFlow = params?.apply === 'true';
+
+    if (user) {
+        const role = user.publicMetadata?.role as string | undefined;
+        const appAccess = user.publicMetadata?.appAccess as Record<string, string> | undefined;
+
+        // 情況 1：系統管理員 (system_admin) → 顯示管理員專屬說明頁
+        if (role === 'system_admin') {
+            return (
+                <div className="min-h-screen bg-black/90 text-white flex flex-col items-center justify-center p-6 gap-6">
+                    <div className="flex flex-col items-center gap-4">
+                        <div className="bg-white/10 p-3 rounded-full backdrop-blur-sm border border-white/20">
+                            <Camera className="w-10 h-10 text-white" />
+                        </div>
+                        <h1 className="text-3xl font-bold tracking-tight">口袋相片</h1>
+                    </div>
+                    <div className="flex flex-col items-center gap-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl px-8 py-6 text-center max-w-sm">
+                        <ShieldCheck className="w-8 h-8 text-violet-400" />
+                        <p className="text-white font-bold">您是系統管理員</p>
+                        <p className="text-gray-400 text-sm">請前往 <span className="text-violet-400 font-mono">Pocket Admin</span> 後台管理所有相館。</p>
+                    </div>
+                    <div className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-white/5 rounded-full blur-3xl opacity-50 mix-blend-screen"></div>
+                    </div>
+                </div>
+            );
+        }
+
+        // 情況 2：相片館店長（store_admin + appAccess.photo_slug）→ 跳轉專屬相館
+        const photoSlug = appAccess?.photo_slug;
+        if (photoSlug) {
+            redirect(`/${photoSlug}`);
+        }
+
+        const displayName = [user.firstName, user.lastName].filter(Boolean).join(' ') || '用戶';
+        const userEmail = user.emailAddresses[0]?.emailAddress || '';
+
+        // 情況 3a：從「申請相本」進來（?apply=true）→ 直接顯示申請表單
+        if (isApplyFlow) {
+            return (
+                <div className="min-h-screen bg-black/90 text-white flex flex-col items-center justify-center p-6 gap-8">
+                    <div className="flex flex-col items-center gap-4">
+                        <div className="bg-white/10 p-3 rounded-full backdrop-blur-sm border border-white/20">
+                            <Camera className="w-10 h-10 text-white" />
+                        </div>
+                        <div className="text-center">
+                            <h1 className="text-3xl font-bold tracking-tight">口袋相片</h1>
+                            <p className="text-gray-400 text-sm mt-1">您好，{displayName}！請填寫以下資料申請您的專屬相館</p>
+                        </div>
+                    </div>
+                    <ApplicationForm userEmail={userEmail} userName={displayName} />
+                    <div className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-white/5 rounded-full blur-3xl opacity-50 mix-blend-screen"></div>
+                    </div>
+                </div>
+            );
+        }
+
+        // 情況 3b：從「登入管理」進來但無權限 → 顯示提示頁面
+        return (
+            <div className="min-h-screen bg-black/90 text-white flex flex-col items-center justify-center p-6 gap-8">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="bg-white/10 p-3 rounded-full backdrop-blur-sm border border-white/20">
+                        <Camera className="w-10 h-10 text-white" />
+                    </div>
+                    <div className="text-center">
+                        <h1 className="text-3xl font-bold tracking-tight">口袋相片</h1>
+                        <p className="text-gray-400 text-sm mt-1">您好，{displayName}！</p>
+                    </div>
+                </div>
+                <div className="flex flex-col items-center gap-4 bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl px-8 py-8 text-center max-w-sm">
+                    <ShieldCheck className="w-10 h-10 text-yellow-400" />
+                    <p className="text-white font-bold text-lg">您目前沒有相片管理權限</p>
+                    <p className="text-gray-400 text-sm leading-relaxed">
+                        您的帳號尚未綁定任何相館。您可以回到相片瀏覽頁面，或申請一個屬於自己的專屬相本。
+                    </p>
+                </div>
+                <NoPermissionActions userEmail={userEmail} userName={displayName} />
+                <div className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-white/5 rounded-full blur-3xl opacity-50 mix-blend-screen"></div>
+                </div>
+            </div>
+        );
+    }
+
+    // 情況 4：未登入 → 顯示說明頁 + 兩個明確入口
+    return (
+        <div className="min-h-screen bg-black/90 text-white flex flex-col items-center justify-center p-4">
+            <div className="flex flex-col items-center space-y-6 mb-12">
+                <div className="bg-white/10 p-4 rounded-full backdrop-blur-sm border border-white/20">
+                    <Camera className="w-16 h-16 text-white" />
+                </div>
+                <div className="text-center space-y-2">
+                    <h1 className="text-5xl font-bold tracking-tight">口袋相片</h1>
+                    <p className="text-xl text-gray-400 font-light">你的專屬專業相冊平台，與客戶零距離</p>
+                </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
+                {/* 申請相本：登入後帶 ?apply=true 直接顯示表單 */}
+                <SignUpButton mode="modal" fallbackRedirectUrl="/?apply=true" signInFallbackRedirectUrl="/?apply=true">
+                    <button className="w-full flex items-center justify-center gap-2 px-8 py-4 bg-white text-black rounded-xl font-semibold text-lg hover:bg-gray-200 transition-all duration-200">
+                        <ImagePlus className="w-5 h-5" />
+                        申請相本
+                    </button>
+                </SignUpButton>
+
+                {/* 已有帳號 → 登入管理（不帶 apply 參數） */}
+                <SignInButton mode="modal">
+                    <button className="w-full flex items-center justify-center gap-2 px-8 py-4 bg-transparent border border-white/30 rounded-xl font-semibold text-lg text-white hover:bg-white/10 transition-all duration-200">
+                        <LogIn className="w-5 h-5" />
+                        登入管理
+                    </button>
+                </SignInButton>
+            </div>
+
+            <p className="mt-6 text-gray-600 text-sm text-center">
+                申請後，系統管理員將審核您的申請並開通您的專屬相館
+            </p>
+
+            <div className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-white/5 rounded-full blur-3xl opacity-50 mix-blend-screen"></div>
+            </div>
+        </div>
+    );
+}
