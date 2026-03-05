@@ -155,8 +155,14 @@ async function checkFirestoreRole(
 async function syncRoleToClerk(userId: string, newRole: string): Promise<void> {
     try {
         const client = await clerkClient();
+        // 先讀取現有 metadata，再做合併（spread），避免覆蓋已存在的 appAccess.photo_slug
+        const user = await client.users.getUser(userId);
+        const existingMetadata = user.publicMetadata ?? {};
         await client.users.updateUserMetadata(userId, {
-            publicMetadata: { role: newRole }
+            publicMetadata: {
+                ...existingMetadata,  // 保留所有現有欄位（包含 appAccess）
+                role: newRole          // 只更新 role
+            }
         });
         console.log(`[Auth] ✅ Clerk Metadata 同步完成 (userId: ${userId}, role: ${newRole})`);
     } catch (error) {
