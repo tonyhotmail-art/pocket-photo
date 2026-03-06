@@ -35,24 +35,31 @@ export async function POST() {
             return NextResponse.json({ success: true, message: "超管身分已確認", userId, email });
         }
 
-        // 1. 先確認 Firestore 中儲存的權限與店鋪綁定資料（水管 B 最終確認）
+        // 1. 先確認 Firestore 中儲存的權限（admins 集合）
         const firestoreAdminData = await checkFirestoreAdmin(userId, email);
 
         if (!firestoreAdminData) {
             return NextResponse.json({ error: "無管理員權限" }, { status: 403 });
         }
 
+        // 1.5 另外查詢 global_tenants 集合，取得此使用者的 photo slug（admins 集合沒有存 slug）
+        const photoSlugFromGlobalTenants = await getPhotoSlugForUser(userId, email);
+
         // 2. 已確認是管理員，同步 role 與 appAccess 到 Clerk publicMetadata（新 SaaS 架構）
-        // 先讀取 Clerk 現有的 appAccess，避免覆蓋已正確設定的 photo_slug
+        // 先讀取 Clerk 現有的 appAccess（在 grantRoleAndTenant 成功的情況下，這裡應該已有值）
         const existingAppAccess = (user.publicMetadata?.appAccess as Record<string, string>) ?? {};
 
-        // Firebase admins 集合的 tenantSlug 作為補充來源（可能為 undefined）
-        const photoSlugFromFirebase = firestoreAdminData.tenantSlug || undefined;
+        // 來源優先級：global_tenants > admins.tenantSlug > Clerk 現有的 photo_slug
+        const photoSlug =
+            photoSlugFromGlobalTenants ??
+            (firestoreAdminData.tenantSlug || undefined) ??
+            existingAppAccess.photo_slug ??
+            undefined;
 
-        // 合併策略：Firebase 有值就用 Firebase 的，否則保留 Clerk 現有的值
-        const mergedAppAccess = photoSlugFromFirebase
-            ? { ...existingAppAccess, photo_slug: photoSlugFromFirebase }
-            : existingAppAccess; // 沒有就完全保留現有的 appAccess，不寫入 null
+        // 合併策略：有找到 slug 就寫入，否則保留 Clerk 現有的 appAccess
+        const mergedAppAccess = photoSlug
+            ? { ...existingAppAccess, photo_slug: photoSlug }
+            : existingAppAccess;
 
         // client 已在上方宣告，直接使用
         await client.users.updateUserMetadata(userId, {
@@ -61,11 +68,11 @@ export async function POST() {
                 role: firestoreAdminData.role,
                 appAccess: mergedAppAccess,
                 // 保留舊版 tenantSlug 供相容（待全面切換後可移除）
-                tenantSlug: photoSlugFromFirebase ?? (user.publicMetadata?.tenantSlug as string | undefined) ?? null
+                tenantSlug: photoSlug ?? null
             }
         });
 
-        const finalPhotoSlug = (mergedAppAccess as Record<string, string>).photo_slug ?? null;
+        const finalPhotoSlug = photoSlug ?? null;
 
         console.log(`[SyncRole] ✅ userId: ${userId} 已同步至 Clerk Metadata (role: ${firestoreAdminData.role}, photo_slug: ${finalPhotoSlug})`);
 
@@ -153,6 +160,47 @@ async function checkFirestoreAdmin(userId: string, email: string | undefined): P
         return null;
     } catch (error) {
         console.error("[SyncRole] Firestore 查詢失敗:", error);
+        return null;
+    }
+}
+
+/**
+ * 從 global_tenants 集合查詢使用者被分配到的 photo slug
+ * admins 集合沒有存 tenantSlug，所以必須查這裡
+ */
+async function getPhotoSlugForUser(userId: string, email: string | undefined): Promise<string | null> {
+    try {
+        const adminDb = getFirestore(getAdminApp());
+
+        // 優先用 Clerk User ID 查
+        const snapById = await adminDb.collection("global_tenants")
+            .where("type", "==", "photo")
+            .where("ownerClerkId", "==", userId)
+            .limit(1)
+            .get();
+        if (!snapById.empty) {
+            const slug = snapById.docs[0].data().slug;
+            console.log(`[SyncRole] 📦 從 global_tenants 查到 slug: ${slug}`);
+            return slug || null;
+        }
+
+        // 若查不到，改用 email 查（相容早期資料）
+        if (email) {
+            const snapByEmail = await adminDb.collection("global_tenants")
+                .where("type", "==", "photo")
+                .where("ownerEmail", "==", email.toLowerCase())
+                .limit(1)
+                .get();
+            if (!snapByEmail.empty) {
+                const slug = snapByEmail.docs[0].data().slug;
+                console.log(`[SyncRole] 📦 從 global_tenants（by email）查到 slug: ${slug}`);
+                return slug || null;
+            }
+        }
+
+        return null;
+    } catch (error) {
+        console.error("[SyncRole] global_tenants 查詢失敗:", error);
         return null;
     }
 }
