@@ -172,28 +172,30 @@ async function getPhotoSlugForUser(userId: string, email: string | undefined): P
     try {
         const adminDb = getFirestore(getAdminApp());
 
-        // 優先用 Clerk User ID 查
+        // 優先用 Clerk User ID 查（只有 status=active 才算數，停權/刪除的不回傳）
         const snapById = await adminDb.collection("global_tenants")
             .where("type", "==", "photo")
             .where("ownerClerkId", "==", userId)
+            .where("status", "==", "active")
             .limit(1)
             .get();
         if (!snapById.empty) {
             const slug = snapById.docs[0].data().slug;
-            console.log(`[SyncRole] 📦 從 global_tenants 查到 slug: ${slug}`);
+            console.log(`[SyncRole] 📦 從 global_tenants 查到 slug: ${slug} (status=active)`);
             return slug || null;
         }
 
-        // 若查不到，改用 email 查（相容早期資料）
+        // 若查不到，改用 email 查（相容早期資料，同樣只取 status=active）
         if (email) {
             const snapByEmail = await adminDb.collection("global_tenants")
                 .where("type", "==", "photo")
                 .where("ownerEmail", "==", email.toLowerCase())
+                .where("status", "==", "active")
                 .limit(1)
                 .get();
             if (!snapByEmail.empty) {
                 const slug = snapByEmail.docs[0].data().slug;
-                console.log(`[SyncRole] 📦 從 global_tenants（by email）查到 slug: ${slug}`);
+                console.log(`[SyncRole] 📦 從 global_tenants（by email）查到 slug: ${slug} (status=active)`);
                 return slug || null;
             }
         }
