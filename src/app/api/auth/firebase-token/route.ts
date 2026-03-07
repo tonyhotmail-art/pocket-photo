@@ -42,9 +42,18 @@ export async function POST() {
 
         return NextResponse.json({ token: customToken });
     } catch (error) {
-        console.error("[firebase-token] 產生 Custom Token 失敗:", error);
+        // 詳細記錄錯誤，方便在 Vercel 日誌中診斷
+        const errMsg = error instanceof Error ? error.message : String(error);
+        const errCode = (error as any)?.errorInfo?.code || (error as any)?.code || "unknown";
+        console.error("[firebase-token] ❌ 產生 Custom Token 失敗");
+        console.error("[firebase-token] 錯誤訊息:", errMsg);
+        console.error("[firebase-token] 錯誤代碼:", errCode);
+        console.error("[firebase-token] FIREBASE_PROJECT_ID 有值:", !!process.env.FIREBASE_PROJECT_ID);
+        console.error("[firebase-token] FIREBASE_CLIENT_EMAIL 有值:", !!process.env.FIREBASE_CLIENT_EMAIL);
+        console.error("[firebase-token] FIREBASE_PRIVATE_KEY 有值:", !!process.env.FIREBASE_PRIVATE_KEY);
+        console.error("[firebase-token] FIREBASE_PRIVATE_KEY 長度:", process.env.FIREBASE_PRIVATE_KEY?.length ?? 0);
         return NextResponse.json(
-            { error: "產生 Firebase Token 失敗" },
+            { error: "產生 Firebase Token 失敗", detail: errMsg, code: errCode },
             { status: 500 }
         );
     }
