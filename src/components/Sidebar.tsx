@@ -18,7 +18,7 @@ export default function Sidebar({
 }: SidebarProps) {
     const { isStaffRole } = useAuth();
     const { settings } = useSystemSettings();
-    const siteName = settings.siteName || "KELLY PHOTO";
+    const siteName = settings.siteName || "Pocket Photo";
 
     // 過濾分類：
     // 1. __回收區__ 永遠不在前台顯示（任何人，包含管理員）

@@ -7,6 +7,6 @@ export default function robots(): MetadataRoute.Robots {
             allow: "/",
             disallow: ["/api/", "/admin/"],
         },
-        sitemap: "https://kellyphoto.vercel.app/sitemap.xml", // Replace with actual domain later
+        sitemap: "https://photo.pocketapp.tw/sitemap.xml",
     };
 }

@@ -240,7 +240,7 @@ export default function UserCardDropdown({
                                     </button>
                                 </div>
                                 <div className="pb-3 text-center">
-                                    <p className="text-[10px] text-[#cccccc] tracking-[0.2em] uppercase">Kelly Photo</p>
+                                    <p className="text-[10px] text-[#cccccc] tracking-[0.2em] uppercase">Pocket Photo</p>
                                 </div>
                             </>
                         )}

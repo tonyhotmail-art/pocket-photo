@@ -20,7 +20,7 @@ export interface SystemSettingsData {
 
 // 預設值
 const DEFAULT_SETTINGS: Omit<SystemSettingsData, "tenantId"> = {
-    siteName: "KELLY PHOTO",
+    siteName: "Pocket Photo",
     lineUrl: "",
     allowSharing: true,
     showTimeline: false,

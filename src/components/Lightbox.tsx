@@ -323,7 +323,7 @@ export default function Lightbox({
                                         e.stopPropagation();
                                         if (navigator.share && /Android|iPhone|iPad/i.test(navigator.userAgent)) {
                                             navigator.share({
-                                                title: activeItem.title || "Kelly Photo 作品集",
+                                                title: activeItem.title || "Pocket Photo 口袋相片",
                                                 text: activeItem.description || "來看看這張精彩的照片！",
                                                 url: `${window.location.origin}${window.location.pathname}?id=${activeItem.id}`
                                             }).catch(console.error);

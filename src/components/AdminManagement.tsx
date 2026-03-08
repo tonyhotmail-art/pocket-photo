@@ -175,7 +175,7 @@ export default function AdminManagement() {
                                         type="text"
                                         value={accountName}
                                         onChange={(e) => setAccountName(e.target.value)}
-                                        placeholder="例如：Kelly"
+                                        placeholder="例如：小明"
                                         className="w-full px-4 py-3 bg-white border border-gray-100 rounded-xl focus:ring-2 focus:ring-gray-800 outline-none transition text-sm"
                                     />
                                 </div>
@@ -188,7 +188,7 @@ export default function AdminManagement() {
                                         type="text"
                                         value={accountName}
                                         onChange={(e) => setAccountName(e.target.value)}
-                                        placeholder="例如：Kelly"
+                                        placeholder="例如：小明"
                                         className="w-full px-4 py-3 bg-white border border-gray-100 rounded-xl focus:ring-2 focus:ring-gray-800 outline-none transition text-sm"
                                         required
                                     />

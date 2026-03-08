@@ -417,7 +417,7 @@ function HomeContent() {
               const url = `${window.location.origin}${window.location.pathname}`;
               if (navigator.share) {
                 navigator.share({
-                  title: `Kelly Photo 作品集`,
+                  title: `Pocket Photo 口袋相片`,
                   url: url
                 }).catch(console.error);
               } else if (navigator.clipboard) {
@@ -524,10 +524,16 @@ function HomeContent() {
                   <SystemSettings />
                 </section>
 
+                {/* 
+                  [暫時停用] 管理員名單功能
+                  停用原因：目前為單人管理相本模式，不需要管理員名單。
+                  恢復時機：未來開放「多人共同管理同一相本」功能時，取消以下註解即可恢復。
+                  安全考量：不渲染此元件可避免前端打包，防止透過瀏覽器開發者工具查看。
                 <hr className="border-gray-100" />
                 <section>
                   <AdminManagement />
                 </section>
+                */}
 
                 <hr className="border-gray-100" />
                 <section className="pb-12">
