@@ -4,6 +4,7 @@ import { Camera, ShieldCheck, ImagePlus, LogIn, RefreshCw } from "lucide-react";
 import { SignInButton, SignUpButton } from "@clerk/nextjs";
 import ApplicationForm from "@/components/ApplicationForm";
 import NoPermissionActions from "@/components/NoPermissionActions";
+import InstallPWAButton from "@/components/InstallPWAButton";
 import { adminDb } from "@/lib/firebase-admin";
 
 // ✅ ROOT RULE 規則 0：改用 auth() + clerkClient() 強制拉取最新 metadata
@@ -151,42 +152,104 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
 
     // 情況 4：未登入 → 顯示說明頁 + 兩個明確入口
     return (
-        <div className="min-h-screen bg-black/90 text-white flex flex-col items-center justify-center p-4">
-            <div className="flex flex-col items-center space-y-6 mb-12">
-                <div className="bg-white/10 p-4 rounded-full backdrop-blur-sm border border-white/20">
-                    <Camera className="w-16 h-16 text-white" />
+        <div className="min-h-screen bg-[#020402] text-white flex flex-col items-center justify-center p-4 relative overflow-hidden">
+            {/* 背景紋理與整體光暈 */}
+            <div
+                className="absolute inset-0 opacity-[0.03] pointer-events-none"
+                style={{
+                    backgroundImage: `url(https://d2xsxph8kpxj0f.cloudfront.net/310519663413754587/TgZsh9WDBCkcE3sdpSsW6u/city-texture-CTBAdxTKeX7PeqYHCzPvx9.webp)`,
+                    backgroundSize: "400px 400px",
+                }}
+            />
+
+            <div className="relative w-full max-w-[1100px] bg-[#060A08] border border-[#c8a84b]/30 rounded-[2rem] p-8 md:p-12 lg:p-16 flex flex-col lg:flex-row items-center gap-12 lg:gap-20 shadow-[0_0_50px_rgba(200,168,75,0.05)] z-10 my-8">
+                {/* 裝飾性背景光暈 */}
+                <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-[#c8a84b]/5 blur-[120px] rounded-full pointer-events-none" />
+
+                {/* 左側：手機 Mockup 區塊 */}
+                <div className="relative w-full lg:w-[45%] flex flex-col justify-center items-center py-4">
+                    <div className="absolute inset-0 bg-[#c8a84b]/15 blur-[60px] rounded-full transform scale-90 pointer-events-none"></div>
+                    <div className="relative z-10 w-full max-w-[280px] aspect-[1/2.15] rounded-[2.5rem] border-[3px] border-[#222222] ring-1 ring-[#c8a84b]/40 overflow-hidden bg-[#0A0A0A] shadow-[0_0_50px_rgba(0,0,0,0.8)]">
+                        <img
+                            src="https://d2xsxph8kpxj0f.cloudfront.net/310519663413754587/TgZsh9WDBCkcE3sdpSsW6u/pocket-photo-card-26YmXqTeHDX34eBioU4h6v.webp"
+                            alt="Pocket Photo App"
+                            className="w-full h-full absolute inset-0 object-cover object-center opacity-95 scale-[1.35]"
+                        />
+                        <div className="absolute top-0 inset-x-0 h-6 flex justify-center pt-2 pointer-events-none">
+                            <div className="w-24 h-5 bg-[#222222] rounded-full shadow-sm"></div>
+                        </div>
+                    </div>
+
+                    {/* 一鍵安裝 PWA 按鈕，移至手機圖示下方 */}
+                    <div className="w-full max-w-[280px] mt-6 relative z-10">
+                        <InstallPWAButton />
+                    </div>
                 </div>
-                <div className="text-center space-y-2">
-                    <h1 className="text-5xl font-bold tracking-tight">口袋相片</h1>
-                    <p className="text-xl text-gray-400 font-light">你的專屬專業相冊平台，與客戶零距離</p>
+
+                {/* 右側：文字與按鈕區塊 */}
+                <div className="flex-1 flex flex-col justify-center items-start relative z-10 w-full">
+                    <div className="flex items-center gap-4 mb-2">
+                        <h1
+                            className="text-4xl lg:text-5xl font-semibold tracking-wide drop-shadow-md text-[#e8d9b0]"
+                            style={{ fontFamily: "'Noto Serif TC', serif" }}
+                        >
+                            口袋相片
+                        </h1>
+                        <span className="border border-[#c8a84b]/50 text-[#c8a84b] px-3 py-1 rounded-md text-xs font-bold tracking-widest bg-[#c8a84b]/10 shadow-[0_0_10px_rgba(200,168,75,0.2)]">
+                            BETA
+                        </span>
+                    </div>
+
+                    <p
+                        className="text-[#c8a84b] tracking-[0.2em] text-lg lg:text-xl mb-6 lg:mb-8 font-light"
+                        style={{ fontFamily: "'Cormorant Garamond', serif" }}
+                    >
+                        Pocket Photo
+                    </p>
+
+                    <p
+                        className="leading-loose text-base lg:text-lg mb-8 max-w-xl text-[#a0aab0]"
+                        style={{ fontFamily: "'Noto Sans TC', sans-serif" }}
+                    >
+                        專業相片管理與分享平台，輕鬆整理、展示您的精彩瞬間。支援高畫質上傳、智慧分類與私密相簿功能。
+                    </p>
+
+                    <ul className="space-y-4 mb-10 lg:mb-12">
+                        {["高畫質相片儲存", "智慧相簿分類", "一鍵分享連結", "私密相簿保護"].map((feat) => (
+                            <li
+                                key={feat}
+                                className="flex items-center gap-4 text-base tracking-wide text-[#ccced0]"
+                                style={{ fontFamily: "'Noto Sans TC', sans-serif" }}
+                            >
+                                <span
+                                    className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-[#c8a84b] shadow-[0_0_8px_rgba(200,168,75,0.8)]"
+                                />
+                                {feat}
+                            </li>
+                        ))}
+                    </ul>
+
+                    {/* 登入與註冊入口 */}
+                    <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md lg:max-w-full">
+                        <SignUpButton mode="modal" fallbackRedirectUrl="/?apply=true" signInFallbackRedirectUrl="/?apply=true">
+                            <button className="flex-1 px-6 py-4 rounded-xl text-base font-bold tracking-widest transition-all duration-300 transform hover:-translate-y-1 bg-gradient-to-r from-[#c8a84b] to-[#d4b968] text-[#1a1a1a] shadow-[0_4px_20px_rgba(200,168,75,0.3)] hover:shadow-[0_8px_30px_rgba(200,168,75,0.5)] border border-[#e8d9b0]/50 hover:border-[#e8d9b0] hover:brightness-110 flex justify-center items-center gap-2">
+                                <ImagePlus className="w-5 h-5" />
+                                申請相本
+                            </button>
+                        </SignUpButton>
+
+                        <SignInButton mode="modal">
+                            <button className="flex-1 px-6 py-4 rounded-xl text-base font-bold tracking-widest transition-all duration-300 transform hover:-translate-y-1 bg-[#111111]/50 backdrop-blur-md border border-[#c8a84b]/50 text-[#c8a84b] hover:bg-[#c8a84b]/10 flex justify-center items-center gap-2">
+                                <LogIn className="w-5 h-5" />
+                                登入管理
+                            </button>
+                        </SignInButton>
+                    </div>
                 </div>
             </div>
-
-            <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
-                {/* 申請相本：登入後帶 ?apply=true 直接顯示表單 */}
-                <SignUpButton mode="modal" fallbackRedirectUrl="/?apply=true" signInFallbackRedirectUrl="/?apply=true">
-                    <button className="w-full flex items-center justify-center gap-2 px-8 py-4 bg-white text-black rounded-xl font-semibold text-lg hover:bg-gray-200 transition-all duration-200">
-                        <ImagePlus className="w-5 h-5" />
-                        申請相本
-                    </button>
-                </SignUpButton>
-
-                {/* 已有帳號 → 登入管理（不帶 apply 參數） */}
-                <SignInButton mode="modal">
-                    <button className="w-full flex items-center justify-center gap-2 px-8 py-4 bg-transparent border border-white/30 rounded-xl font-semibold text-lg text-white hover:bg-white/10 transition-all duration-200">
-                        <LogIn className="w-5 h-5" />
-                        登入管理
-                    </button>
-                </SignInButton>
-            </div>
-
-            <p className="mt-6 text-gray-600 text-sm text-center">
+            <p className="mt-8 text-gray-500 text-sm xl:text-base text-center relative z-10 font-light tracking-wide">
                 申請後，系統管理員將審核您的申請並開通您的專屬相館
             </p>
-
-            <div className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-white/5 rounded-full blur-3xl opacity-50 mix-blend-screen"></div>
-            </div>
         </div>
     );
 }

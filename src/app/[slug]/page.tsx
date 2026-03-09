@@ -20,6 +20,7 @@ import { Settings, Image as ImageIcon, Loader2, X, LogOut, MessageCircle, Share2
 import { clsx } from "clsx";
 import { useSearchParams, useParams } from "next/navigation";
 import SystemSettings, { useSystemSettings } from "@/components/SystemSettings";
+import CameraUploadButton from "@/components/CameraUploadButton";
 
 
 function HomeContent() {
@@ -301,7 +302,55 @@ function HomeContent() {
 
       {/* Mobile Top Bar */}
       <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#F8F7F3]/80 backdrop-blur-md border-b border-gray-100 z-30 flex items-center justify-center px-6">
-        <h1 className="text-xl font-bold tracking-tighter">{siteSettings?.siteName || "Pocket Photo"}</h1>
+        <h1 className="text-xl font-bold tracking-tighter truncate max-w-[70%]">{siteSettings?.siteName || "Pocket Photo"}</h1>
+        {siteSettings.allowSharing && (
+          <button
+            onClick={() => {
+              const url = `${window.location.origin}${window.location.pathname}`;
+              if (navigator.share) {
+                navigator.share({
+                  title: `Pocket Photo 口袋相片`,
+                  url: url
+                }).catch(console.error);
+              } else if (navigator.clipboard) {
+                navigator.clipboard.writeText(url);
+                alert("網址已複製到剪貼簿");
+              } else {
+                alert("您的瀏覽器不支援自動複製，請手動複製網址：" + url);
+              }
+            }}
+            className="absolute right-4 w-9 h-9 flex items-center justify-center bg-white text-[#555555] shadow-sm border border-gray-200 rounded-full hover:scale-105 transition-transform"
+            title="分享整個作品集"
+          >
+            <Share2 className="w-4 h-4" strokeWidth={1.5} />
+          </button>
+        )}
+      </div>
+
+      {/* 分享按鈕 Desktop (置於右上角) */}
+      <div className="hidden lg:flex fixed top-8 right-8 z-40">
+        {siteSettings.allowSharing && (
+          <button
+            onClick={() => {
+              const url = `${window.location.origin}${window.location.pathname}`;
+              if (navigator.share) {
+                navigator.share({
+                  title: `Pocket Photo 口袋相片`,
+                  url: url
+                }).catch(console.error);
+              } else if (navigator.clipboard) {
+                navigator.clipboard.writeText(url);
+                alert("網址已複製到剪貼簿");
+              } else {
+                alert("您的瀏覽器不支援自動複製，請手動複製網址：" + url);
+              }
+            }}
+            className="w-11 h-11 bg-white text-[#555555] shadow-xl rounded-full hover:scale-110 transition-transform border border-gray-200 flex items-center justify-center"
+            title="分享整個作品集"
+          >
+            <Share2 className="w-5 h-5" strokeWidth={1.5} />
+          </button>
+        )}
       </div>
 
       <Sidebar
@@ -411,36 +460,23 @@ function HomeContent() {
       {/* 右下角功能按鈕組群 - 登入者圖示置頂 */}
       <div className="fixed bottom-6 right-6 md:bottom-8 md:right-8 flex flex-col gap-3 z-40 items-center">
 
-        {/* 0. 管理員圖示（最上方）— 僅管理員可見 */}
+        {/* 0. 管理員圖示（最上方）— 應要求暫時隱藏並替換位置
         {isStaffRole && (
           <UserCardDropdown size={44} afterSignOutUrl="/" />
         )}
+        */}
 
-        {/* 1. 分享作品集（由後台設定控制是否顯示）*/}
-        {siteSettings.allowSharing && (
-          <button
-            onClick={() => {
-              const url = `${window.location.origin}${window.location.pathname}`;
-              if (navigator.share) {
-                navigator.share({
-                  title: `Pocket Photo 口袋相片`,
-                  url: url
-                }).catch(console.error);
-              } else if (navigator.clipboard) {
-                navigator.clipboard.writeText(url);
-                alert("網址已複製到剪貼簿");
-              } else {
-                alert("您的瀏覽器不支援自動複製，請手動複製網址：" + url);
-              }
-            }}
-            className="w-11 h-11 bg-white text-[#555555] shadow-xl rounded-full hover:scale-110 transition-transform border border-gray-200 flex items-center justify-center"
-            title="分享整個作品集"
-          >
-            <Share2 className="w-5 h-5" strokeWidth={1.5} />
-          </button>
+        {/* 1. 相機拍照上傳（本機/管理員專用，放大處理） */}
+        {isStaffRole && (
+          <CameraUploadButton
+            className="w-16 h-16 bg-black text-white border-2 border-white/20 shadow-2xl hover:bg-gray-900"
+            iconProps={{ size: 28, strokeWidth: 2 }}
+          />
         )}
 
-        {/* 2. 聯繫 LINE@（僅在後台有設定時顯示） */}
+
+
+        {/* 3. 聯繫 LINE@（僅在後台有設定時顯示） */}
         {siteSettings.lineUrl && (
           <a
             href={siteSettings.lineUrl}
@@ -453,7 +489,7 @@ function HomeContent() {
           </a>
         )}
 
-        {/* 3. 管理員設定入口（最下方）— 管理員可見，未登入者可見登入按鈕 */}
+        {/* 4. 管理員設定入口（最下方）— 管理員可見，未登入者可見登入按鈕 */}
         {isStaffRole ? (
           <button
             onClick={handleAdminToggle}
