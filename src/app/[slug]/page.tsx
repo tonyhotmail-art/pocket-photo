@@ -111,7 +111,8 @@ function HomeContent() {
         id: doc.id,
         ...doc.data()
       })) as Category[];
-      setCategories(cats);
+      // 過濾掉回收區分類，不顯示在側邊欄
+      setCategories(cats.filter(cat => cat.name !== "__回收區__"));
     });
     return () => unsubscribe();
   }, [isStaffRole, authLoading, slug]);
@@ -166,10 +167,15 @@ function HomeContent() {
     }
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const allItems = snapshot.docs.map(doc => ({
+      let allItems = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as PortfolioItem[];
+
+      // 如果選擇的分類是全部，在客戶端將回收區的照片過濾掉
+      if (selectedCategoryName === "all") {
+        allItems = allItems.filter(item => item.categoryName !== "__回收區__");
+      }
 
       if (allItems.length > displayLimit) {
         setHasMore(true);

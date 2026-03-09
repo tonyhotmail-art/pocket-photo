@@ -49,8 +49,12 @@ export default function ApplicationForm({ userEmail, userName }: ApplicationForm
                 if (data.success) {
                     setResult({
                         success: true,
-                        message: `您的申請已成功送出！管理員審核後，您的相館將會以「/${slug}」為網址開通。`
+                        message: data.message || `您的相館「${storeName}」已自動開通！`,
                     });
+                    // 2 秒後自動跳轉到新開通的相館
+                    setTimeout(() => {
+                        window.location.href = `/${slug}`;
+                    }, 2000);
                 } else {
                     setResult({ success: false, message: data.error || '送出失敗，請稍後重試。' });
                 }
@@ -65,9 +69,9 @@ export default function ApplicationForm({ userEmail, userName }: ApplicationForm
         return (
             <div className="flex flex-col items-center gap-4 bg-white/10 backdrop-blur-sm border border-emerald-500/30 rounded-2xl px-8 py-10 text-center max-w-md w-full">
                 <CheckCircle2 className="w-12 h-12 text-emerald-400" />
-                <p className="text-white text-lg font-bold">申請已送出！</p>
+                <p className="text-white text-lg font-bold">🎉 相館已開通！</p>
                 <p className="text-gray-300 text-sm leading-relaxed">{result.message}</p>
-                <p className="text-gray-400 text-xs mt-2">我們將盡快與您聯繫，請留意 <span className="text-white">{contactEmail}</span> 的信箱。</p>
+                <p className="text-gray-400 text-xs mt-2">正在跳轉到您的相館...</p>
             </div>
         );
     }

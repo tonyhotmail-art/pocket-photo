@@ -80,20 +80,23 @@ export default function Lightbox({
         e.stopPropagation();
         if (!activeItem?.id || isDeleting) return;
 
-        if (!confirm("確定要刪除這張照片嗎?此操作將同時從雲端空間移除檔案,且無法復原。")) {
+        if (!confirm("確定要將這張照片移至回收區嗎？（30 天內可從後台復原）")) {
             return;
         }
 
         setIsDeleting(true);
         try {
-            const res = await authenticatedFetch(`/api/works?id=${activeItem.id}`, {
-                method: "DELETE",
+            const tenantSlug = activeItem.tenantId || "";
+            const res = await authenticatedFetch(`/api/recycle?tenantSlug=${tenantSlug}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ids: [activeItem.id] }),
             });
 
-            if (!res.ok) throw new Error("刪除失敗");
+            if (!res.ok) throw new Error("移至回收區失敗");
 
             // 記錄成功訊息到 console (不使用 alert 避免阻塞)
-            console.log("✅ 照片已成功刪除:", activeItem.title);
+            console.log("✅ 照片已移至回收區:", activeItem.title);
 
             // 刪除成功後的處理
             if (items.length <= 1) {
@@ -404,8 +407,12 @@ export default function Lightbox({
 
                     <div className="relative z-10 p-6 md:p-10 text-white flex flex-col items-start font-serif pointer-events-auto">
                         {isAdmin ? (
-                            <div className="text-[10px] uppercase tracking-[0.4em] text-white/50 mb-3 text-left">
+                            <div className={clsx(
+                                "text-[10px] uppercase tracking-[0.4em] mb-3 text-left",
+                                activeItem.categoryName === "待分類照片" ? "text-red-500 font-bold" : "text-white/50"
+                            )}>
                                 {activeItem.categoryName}
+                                {activeItem.categoryName === "待分類照片" && <span className="ml-2 tracking-normal">(點選下列分類框進行照片分類)</span>}
                             </div>
                         ) : (
                             <button
@@ -413,9 +420,15 @@ export default function Lightbox({
                                     onCategoryClick?.(activeItem.categoryName);
                                     onClose();
                                 }}
-                                className="text-[10px] uppercase tracking-[0.4em] text-white/50 mb-3 hover:text-white transition-colors text-left"
+                                className={clsx(
+                                    "text-[10px] uppercase tracking-[0.4em] mb-3 transition-colors text-left",
+                                    activeItem.categoryName === "待分類照片"
+                                        ? "text-red-500 font-bold hover:text-red-400"
+                                        : "text-white/50 hover:text-white"
+                                )}
                             >
                                 {activeItem.categoryName}
+                                {activeItem.categoryName === "待分類照片" && <span className="ml-2 tracking-normal">(點選下列分類框進行照片分類)</span>}
                             </button>
                         )}
 

@@ -78,9 +78,15 @@ function PhotoCard({ item, index, hoveredId, onHover, onItemClick, onCategoryCli
                 <div className="flex flex-wrap items-baseline gap-x-3 mb-1">
                     <button
                         onClick={() => onCategoryClick?.(item.categoryName)}
-                        className="text-[10px] uppercase tracking-[0.3em] text-gray-400 hover:text-[#1A1A1A] transition-colors"
+                        className={clsx(
+                            "text-[10px] uppercase tracking-[0.2em] transition-colors",
+                            item.categoryName === "待分類照片"
+                                ? "text-red-500 font-bold hover:text-red-700"
+                                : "text-gray-400 hover:text-[#1A1A1A]"
+                        )}
                     >
                         {item.categoryName}
+                        {item.categoryName === "待分類照片" && <span className="ml-1 tracking-normal">(請點選照片進行分類)</span>}
                     </button>
                     {item.title && (
                         <h3

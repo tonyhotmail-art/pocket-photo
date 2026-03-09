@@ -356,7 +356,7 @@ export default function AutoForm() {
 
     return (
         <div className="w-full mx-auto">
-            <h2 className="text-xl md:text-2xl font-bold mb-6 text-gray-800">上傳彩妝作品</h2>
+            <h2 className="text-xl md:text-2xl font-bold mb-6 text-gray-800">上傳作品</h2>
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 

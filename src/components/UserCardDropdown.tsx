@@ -14,6 +14,43 @@ interface UserCardDropdownProps {
     noBackdrop?: boolean;
 }
 
+const BackBtn = ({ to = "menu" as ViewMode, setView }: { to?: ViewMode, setView: (v: ViewMode) => void }) => (
+    <button
+        onClick={() => setView(to)}
+        className="flex items-center gap-1.5 text-xs text-[#aaaaaa] hover:text-[#1A1A1A] transition-colors mb-4"
+    >
+        <ChevronLeft size={13} /> 返回
+    </button>
+);
+
+const PwdInput = ({
+    id, value, onChange, placeholder,
+    show, setShow,
+}: {
+    id: string; value: string; onChange: (v: string) => void;
+    placeholder: string; show: boolean; setShow: (v: boolean) => void;
+}) => (
+    <div className="relative">
+        <input
+            id={id}
+            type={show ? "text" : "password"}
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            placeholder={placeholder}
+            autoComplete="off"
+            className="w-full text-sm border border-[#e8e8e4] rounded-xl px-3 py-2.5 pr-9 bg-white text-[#1A1A1A] placeholder:text-[#cccccc] focus:outline-none focus:border-[#1A1A1A] transition-colors"
+        />
+        <button
+            type="button"
+            onClick={() => setShow(!show)}
+            tabIndex={-1}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#cccccc] hover:text-[#888888]"
+        >
+            {show ? <EyeOff size={14} /> : <Eye size={14} />}
+        </button>
+    </div>
+);
+
 /**
  * 自訂使用者卡片 (日式極簡風格)
  * 功能：顯示帳號資訊、新增/修改密碼、找回密碼（發送重設郵件）、登出
@@ -135,43 +172,8 @@ export default function UserCardDropdown({
         }
     };
 
-    // ── 共用元素 ─────────────────────────────
-    const BackBtn = ({ to = "menu" as ViewMode }) => (
-        <button
-            onClick={() => setView(to)}
-            className="flex items-center gap-1.5 text-xs text-[#aaaaaa] hover:text-[#1A1A1A] transition-colors mb-4"
-        >
-            <ChevronLeft size={13} /> 返回
-        </button>
-    );
+    // ── 共用元素已移至組件外部 ─────────────────────────────
 
-    const PwdInput = ({
-        id, value, onChange, placeholder,
-        show, setShow,
-    }: {
-        id: string; value: string; onChange: (v: string) => void;
-        placeholder: string; show: boolean; setShow: (v: boolean) => void;
-    }) => (
-        <div className="relative">
-            <input
-                id={id}
-                type={show ? "text" : "password"}
-                value={value}
-                onChange={e => onChange(e.target.value)}
-                placeholder={placeholder}
-                autoComplete="off"
-                className="w-full text-sm border border-[#e8e8e4] rounded-xl px-3 py-2.5 pr-9 bg-white text-[#1A1A1A] placeholder:text-[#cccccc] focus:outline-none focus:border-[#1A1A1A] transition-colors"
-            />
-            <button
-                type="button"
-                onClick={() => setShow(!show)}
-                tabIndex={-1}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#cccccc] hover:text-[#888888]"
-            >
-                {show ? <EyeOff size={14} /> : <Eye size={14} />}
-            </button>
-        </div>
-    );
 
     return (
         <div className="relative" ref={cardRef}>
@@ -228,11 +230,13 @@ export default function UserCardDropdown({
                                 </div>
 
                                 <div className="p-2">
-                                    <button onClick={() => { setPwdSuccess(false); setPwdError(""); setView("password"); }}
-                                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-[#555555] hover:bg-[#F8F7F3] hover:text-[#1A1A1A] rounded-xl transition-colors group">
-                                        <Lock size={14} strokeWidth={1.5} className="text-[#bbbbbb] group-hover:text-[#1A1A1A] transition-colors" />
-                                        <span className="tracking-wide">{hasPassword ? "修改密碼" : "設定密碼"}</span>
-                                    </button>
+                                    {hasPassword && (
+                                        <button onClick={() => { setPwdSuccess(false); setPwdError(""); setView("password"); }}
+                                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-[#555555] hover:bg-[#F8F7F3] hover:text-[#1A1A1A] rounded-xl transition-colors group">
+                                            <Lock size={14} strokeWidth={1.5} className="text-[#bbbbbb] group-hover:text-[#1A1A1A] transition-colors" />
+                                            <span className="tracking-wide">修改密碼</span>
+                                        </button>
+                                    )}
                                     <button onClick={handleSignOut}
                                         className="w-full flex items-center gap-3 px-4 py-3 text-sm text-[#555555] hover:bg-[#F8F7F3] hover:text-[#1A1A1A] rounded-xl transition-colors group">
                                         <LogOut size={14} strokeWidth={1.5} className="text-[#bbbbbb] group-hover:text-[#1A1A1A] transition-colors" />
@@ -248,7 +252,7 @@ export default function UserCardDropdown({
                         {/* ═══ 密碼管理 ═══ */}
                         {view === "password" && (
                             <div className="p-5">
-                                <BackBtn to="menu" />
+                                <BackBtn to="menu" setView={setView} />
                                 <p className="text-sm font-medium text-[#1A1A1A] mb-4 tracking-wide">
                                     {hasPassword ? "修改密碼" : "設定密碼"}
                                 </p>
@@ -296,7 +300,7 @@ export default function UserCardDropdown({
                         {/* ═══ 找回密碼 ═══ */}
                         {view === "forgot" && (
                             <div className="p-5">
-                                <BackBtn to="password" />
+                                <BackBtn to="password" setView={setView} />
                                 <div className="flex flex-col items-center gap-3 text-center">
                                     <Mail size={32} className="text-[#bbbbbb]" />
                                     <p className="text-sm font-medium text-[#1A1A1A]">找回密碼</p>

@@ -46,6 +46,9 @@ export class PortfolioRepository {
 
         if (options.categoryName && options.categoryName !== "all") {
             constraints.push(where("categoryName", "==", options.categoryName));
+        } else {
+            // 如果是撈取「全部」，必須排除回收區的照片
+            constraints.push(where("categoryName", "!=", "__回收區__"));
         }
 
         if (options.tag) {
