@@ -216,6 +216,40 @@ function HomeContent() {
     shouldOpenFirstItem.current = false;
   };
 
+  // 處理 ESC 鍵關閉燈箱或管理面板
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        console.log("[ESC Debug] 按下 ESC 鍵", { selectedItem: !!selectedItem, showAdmin: !!showAdmin });
+        
+        // 1. 優先關閉燈箱
+        if (selectedItem) {
+          console.log("[ESC Debug] 關閉燈箱");
+          setSelectedItem(null);
+          return;
+        }
+        
+        // 2. 若燈箱沒開，則嘗試關閉管理面板
+        if (showAdmin) {
+          const activeEl = document.activeElement;
+          const isTyping = activeEl instanceof HTMLInputElement || 
+                           activeEl instanceof HTMLTextAreaElement || 
+                           activeEl?.getAttribute('contenteditable') === 'true';
+          
+          console.log("[ESC Debug] 嘗試關閉管理面板", { isTyping });
+          
+          if (!isTyping) {
+            setShowAdmin(false);
+          }
+        }
+      }
+    };
+
+    // 使用 capture: true 確保優先攔截事件
+    window.addEventListener("keydown", handleGlobalKeyDown, true);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown, true);
+  }, [selectedItem, showAdmin]);
+
   useEffect(() => {
     if (showAdmin || selectedItem) {
       document.body.style.overflow = "hidden";
@@ -295,6 +329,36 @@ function HomeContent() {
     }
   };
 
+  const [isSharing, setIsSharing] = useState(false);
+
+  // 共用的分享邏輯
+  const handleShare = async () => {
+    if (isSharing) return;
+
+    const url = `${window.location.origin}${window.location.pathname}`;
+    if (navigator.share) {
+      try {
+        setIsSharing(true);
+        await navigator.share({
+          title: `Pocket Photo 口袋相片`,
+          url: url
+        });
+      } catch (error: any) {
+        // 忽略使用者取消分享的錯誤 (AbortError)
+        if (error.name !== 'AbortError') {
+          console.error("分享失敗:", error);
+        }
+      } finally {
+        setTimeout(() => setIsSharing(false), 500);
+      }
+    } else if (navigator.clipboard) {
+      navigator.clipboard.writeText(url);
+      alert("網址已複製到剪貼簿");
+    } else {
+      alert("您的瀏覽器不支援自動複製，請手動複製網址：" + url);
+    }
+  };
+
   return (
     <main
       className="min-h-screen bg-[#F8F7F3] text-[#1A1A1A] font-serif"
@@ -305,24 +369,15 @@ function HomeContent() {
         <h1 className="text-xl font-bold tracking-tighter truncate max-w-[70%]">{siteSettings?.siteName || "Pocket Photo"}</h1>
         {siteSettings.allowSharing && (
           <button
-            onClick={() => {
-              const url = `${window.location.origin}${window.location.pathname}`;
-              if (navigator.share) {
-                navigator.share({
-                  title: `Pocket Photo 口袋相片`,
-                  url: url
-                }).catch(console.error);
-              } else if (navigator.clipboard) {
-                navigator.clipboard.writeText(url);
-                alert("網址已複製到剪貼簿");
-              } else {
-                alert("您的瀏覽器不支援自動複製，請手動複製網址：" + url);
-              }
-            }}
-            className="absolute right-4 w-9 h-9 flex items-center justify-center bg-white text-[#555555] shadow-sm border border-gray-200 rounded-full hover:scale-105 transition-transform"
+            onClick={handleShare}
+            disabled={isSharing}
+            className={clsx(
+              "absolute right-4 w-9 h-9 flex items-center justify-center bg-white text-[#555555] shadow-sm border border-gray-200 rounded-full hover:scale-105 transition-transform",
+              isSharing && "opacity-50 cursor-not-allowed scale-100 hover:scale-100"
+            )}
             title="分享整個作品集"
           >
-            <Share2 className="w-4 h-4" strokeWidth={1.5} />
+            {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" strokeWidth={1.5} />}
           </button>
         )}
       </div>
@@ -331,24 +386,15 @@ function HomeContent() {
       <div className="hidden lg:flex fixed top-8 right-8 z-40">
         {siteSettings.allowSharing && (
           <button
-            onClick={() => {
-              const url = `${window.location.origin}${window.location.pathname}`;
-              if (navigator.share) {
-                navigator.share({
-                  title: `Pocket Photo 口袋相片`,
-                  url: url
-                }).catch(console.error);
-              } else if (navigator.clipboard) {
-                navigator.clipboard.writeText(url);
-                alert("網址已複製到剪貼簿");
-              } else {
-                alert("您的瀏覽器不支援自動複製，請手動複製網址：" + url);
-              }
-            }}
-            className="w-11 h-11 bg-white text-[#555555] shadow-xl rounded-full hover:scale-110 transition-transform border border-gray-200 flex items-center justify-center"
+            onClick={handleShare}
+            disabled={isSharing}
+            className={clsx(
+              "w-11 h-11 bg-white text-[#555555] shadow-xl rounded-full hover:scale-110 transition-transform border border-gray-200 flex items-center justify-center",
+              isSharing && "opacity-50 cursor-not-allowed scale-100 hover:scale-100"
+            )}
             title="分享整個作品集"
           >
-            <Share2 className="w-5 h-5" strokeWidth={1.5} />
+            {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-5 h-5" strokeWidth={1.5} />}
           </button>
         )}
       </div>

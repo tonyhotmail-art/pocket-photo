@@ -44,5 +44,25 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# security & secrets (root & project)
+/*.json
+!package.json
+!tsconfig.json
+!components.json
+!firebase.json
+!firestore.indexes.json
+.env*.local
+
+# backups & logs
+*.bak*
+*.log
+*.txt
+*.PNG
+/build_debug.log
+/build_error*.log
+/build_log.txt
+/vercel_out.txt
+/lint_output.txt
+
 .vercel
 .env*.local

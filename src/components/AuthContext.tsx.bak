@@ -2,8 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { useUser, useClerk } from "@clerk/nextjs";
-import { db, auth as firebaseAuth } from "@/lib/firebase";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { auth as firebaseAuth } from "@/lib/firebase";
 import { signInWithCustomToken, signOut as firebaseSignOut, onAuthStateChanged } from "firebase/auth";
 import { UserRole } from "@/lib/role-hierarchy";
 
@@ -29,6 +28,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [userRole, setUserRole] = useState<UserRole | null>(null);
     const [userTenantSlug, setUserTenantSlug] = useState<string | null>(null);
     const [firebaseReady, setFirebaseReady] = useState(false);
+    const [roleChecked, setRoleChecked] = useState(false);
     // 防止重複呼叫 firebase-token API
     const firebaseSyncRef = useRef<string | null>(null);
 
@@ -49,43 +49,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     /**
-     * 水管 B：查詢 Firestore admins 集合
-     */
-    const checkFirestorePipe = useCallback(async (
-        userId: string,
-        email: string | null | undefined
-    ): Promise<UserRole | null> => {
-        try {
-            // 比對 clerkUserId
-            const snapById = await getDocs(
-                query(collection(db, "admins"), where("clerkUserId", "==", userId))
-            );
-            if (!snapById.empty) {
-                const data = snapById.docs[0].data();
-                if (data.role === 'system_admin' || data.role === 'admin') return 'system_admin';
-                if (data.role === 'store_admin') return 'store_admin';
-            }
-
-            if (email) {
-                // 比對 Email
-                const snapByEmail = await getDocs(
-                    query(collection(db, "admins"), where("email", "==", email.toLowerCase()))
-                );
-                if (!snapByEmail.empty) {
-                    const data = snapByEmail.docs[0].data();
-                    if (data.role === 'system_admin' || data.role === 'admin') return 'system_admin';
-                    if (data.role === 'store_admin') return 'store_admin';
-                }
-            }
-            return 'customer';
-        } catch (error) {
-            console.error("[AuthContext] Firestore 查詢失敗:", error);
-            return null;
-        }
-    }, []);
-
-    /**
-     * 雙水管判斷主邏輯
+     * 透過後端 API 查驗管理員權限
+     * 不再從客戶端直接查詢 Firestore admins 集合，避免非管理者觸發 permission-denied
      */
     const checkAdminStatus = useCallback(async (
         userId: string,
@@ -93,30 +58,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         publicMetadata: Record<string, unknown>
     ): Promise<UserRole | null> => {
 
-        // 水管 A：讀 Clerk publicMetadata
-        const pmRole = publicMetadata?.role as string;
-        if (pmRole === 'system_admin' || pmRole === 'admin') {
-            console.log("[AuthContext] 🔑 水管A（Clerk Metadata）通過，角色：system_admin");
-            return 'system_admin';
-        }
-        if (pmRole === 'store_admin') {
-            console.log("[AuthContext] 🔑 水管A（Clerk Metadata）通過，角色：store_admin");
-            return 'store_admin';
-        }
+        console.log("[AuthContext] 正在透過後端 API 嚴格驗證管理員權限...");
 
-        // 水管 B：Firestore
-        console.log("[AuthContext] 水管A 未標記，嘗試水管B（Firestore）...");
-        const firestoreRole = await checkFirestorePipe(userId, email);
-        if (firestoreRole === 'system_admin' || firestoreRole === 'store_admin') {
-            console.log(`[AuthContext] 🔑 水管B（Firestore）通過，角色：${firestoreRole}，觸發同步補水管A...`);
-            // 非同步補水管 A，不阻塞登入流程
-            syncRoleToClerk();
-            return firestoreRole;
-        }
+        try {
+            const res = await fetch("/api/admin/sync-role", { method: "POST" });
 
-        console.log("[AuthContext] 未具備後台權限，判定為一般訪客 (customer)");
-        return 'customer';
-    }, [checkFirestorePipe, syncRoleToClerk]);
+            if (res.ok) {
+                // 後端名冊查驗通過，從回傳的最新 Clerk metadata 讀取角色
+                // 重新讀取 user 的 publicMetadata（sync-role 可能已更新）
+                const pmRole = publicMetadata?.role as string;
+                console.log(`[AuthContext] ✅ 後端名冊驗證通過！角色: ${pmRole || 'store_admin'}`);
+
+                if (pmRole === 'system_admin' || pmRole === 'admin') return 'system_admin';
+                return 'store_admin';
+            } else {
+                // 被後端打槍 (403)，名冊裡沒這個人
+                console.log("[AuthContext] 此帳號非管理員，角色設為一般使用者");
+                return 'customer';
+            }
+        } catch (error) {
+            console.error("[AuthContext] 權限驗證失敗，安全降級為一般使用者:", error);
+            return 'customer';
+        }
+    }, []);
 
     /**
      * Firebase 同步登入：Clerk 登入後取得 Custom Token 並登入 Firebase
@@ -162,15 +126,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 window.location.replace(`/${slug}`);
             }
 
-            // 同步 Firebase Auth（讓 Firestore rules 可用）
-            syncFirebaseAuth(user.id);
-
-            // 檢查管理員資格
-            checkAdminStatus(user.id, email, metadata).then(role => setUserRole(role));
+            // 重要：先完成 Firebase 登入，再進行角色檢查
+            // 確保兩者都完成後才解除 loading，避免在過渡期觸發 Firestore 查詢
+            setRoleChecked(false);
+            syncFirebaseAuth(user.id).then(() => {
+                // Firebase 登入完成後才檢查管理員資格
+                checkAdminStatus(user.id, email, metadata).then(role => {
+                    setUserRole(role);
+                    setRoleChecked(true);
+                });
+            });
         } else {
             setUserRole(null);
             setUserTenantSlug(null);
             setFirebaseReady(true);
+            setRoleChecked(true);
             firebaseSyncRef.current = null;
 
             // Clerk 登出時，同步登出 Firebase
@@ -212,7 +182,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             userTenantSlug,
             isStaffRole,
             isAuthenticated: !!user,
-            loading: !isLoaded || (!!user && !firebaseReady),
+            loading: !isLoaded || (!!user && (!firebaseReady || !roleChecked)),
             firebaseReady,
             logout,
             clerkUserId: user?.id ?? null,

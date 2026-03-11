@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import NextImage from "next/image";
 import { db } from "@/lib/firebase";
+import { useAuth } from "@/components/AuthContext";
 import {
     collection,
     query,
@@ -11,7 +12,8 @@ import {
     deleteDoc,
     doc,
     serverTimestamp,
-    orderBy
+    orderBy,
+    where
 } from "firebase/firestore";
 import { Trash2, UserPlus, Mail, Phone, Shield, Loader2, X, Check } from "lucide-react";
 import { clsx } from "clsx";
@@ -28,6 +30,7 @@ interface AdminRecord {
 }
 
 export default function AdminManagement() {
+    const { userTenantSlug } = useAuth();
     const [admins, setAdmins] = useState<AdminRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [isAdding, setIsAdding] = useState(false);
@@ -40,7 +43,13 @@ export default function AdminManagement() {
     const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
-        const q = query(collection(db, "admins"), orderBy("createdAt", "desc"));
+        if (!userTenantId) return;
+
+        const q = query(
+            collection(db, "admins"), 
+            where("tenantId", "==", userTenantId),
+            orderBy("createdAt", "desc")
+        );
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const list = snapshot.docs.map(doc => ({
                 id: doc.id,
@@ -50,16 +59,21 @@ export default function AdminManagement() {
             setLoading(false);
         });
         return () => unsubscribe();
-    }, []);
+    }, [userTenantSlug]);
 
     const handleAddAdmin = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!userTenantSlug) {
+            alert("缺乏租戶資訊，無法新增。");
+            return;
+        }
         setSubmitting(true);
         try {
-            const data: Partial<AdminRecord> & { role?: string } = {
+            const data: any = {
                 type,
-                role: 'system_admin', // 明確賦予最高管理員角色，配合主副 ID 架構
-                createdAt: serverTimestamp() as any, // serverTimestamp 在寫入時需轉型以符合 Partial
+                tenantId: userTenantSlug,
+                role: 'store_admin', // 店長新增的人員預設為店長級別 (配合主副 ID)
+                createdAt: serverTimestamp(),
             };
 
             if (type === "google") {

@@ -1,3 +1,4 @@
+import { env } from "@/lib/env";
 import { NextResponse } from "next/server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { getAdminAuth } from "@/lib/firebase-admin";
@@ -48,10 +49,10 @@ export async function POST() {
         console.error("[firebase-token] ❌ 產生 Custom Token 失敗");
         console.error("[firebase-token] 錯誤訊息:", errMsg);
         console.error("[firebase-token] 錯誤代碼:", errCode);
-        console.error("[firebase-token] FIREBASE_PROJECT_ID 有值:", !!process.env.FIREBASE_PROJECT_ID);
-        console.error("[firebase-token] FIREBASE_CLIENT_EMAIL 有值:", !!process.env.FIREBASE_CLIENT_EMAIL);
-        console.error("[firebase-token] FIREBASE_PRIVATE_KEY 有值:", !!process.env.FIREBASE_PRIVATE_KEY);
-        console.error("[firebase-token] FIREBASE_PRIVATE_KEY 長度:", process.env.FIREBASE_PRIVATE_KEY?.length ?? 0);
+        console.error("[firebase-token] FIREBASE_PROJECT_ID 有值:", !!env.FIREBASE_PROJECT_ID);
+        console.error("[firebase-token] FIREBASE_CLIENT_EMAIL 有值:", !!env.FIREBASE_CLIENT_EMAIL);
+        console.error("[firebase-token] FIREBASE_PRIVATE_KEY 有值:", !!env.FIREBASE_PRIVATE_KEY);
+        console.error("[firebase-token] FIREBASE_PRIVATE_KEY 長度:", env.FIREBASE_PRIVATE_KEY?.length ?? 0);
         return NextResponse.json(
             { error: "產生 Firebase Token 失敗", detail: errMsg, code: errCode },
             { status: 500 }

@@ -7,13 +7,7 @@ service cloud.firestore {
     // 輔助函式 (共用)
     // =============================================
 
-    // 檢查是否存在於 admins 集合（portfolio 舊版管理員判斷方式）
-    function isAdmin() {
-      return request.auth != null &&
-             exists(/databases/$(database)/documents/admins/$(request.auth.uid));
-    }
-
-    // 檢查是否為系統層級的授權 Email（tony / kelly）
+    // 檢查是否為系統層級的授權 Email（Tony / Kelly 擁有上帝權限）
     function isAuthorizedEmail() {
       return request.auth != null &&
              (request.auth.token.email == 'tony.hotmail@gmail.com' ||
@@ -21,21 +15,13 @@ service cloud.firestore {
               request.auth.token.email == 'tony7777777@gmail.com');
     }
 
-    // 從 pocket_users 集合讀取角色（供 pocket-booking 系統使用）
-    function getUserRole(uid) {
-      return exists(/databases/$(database)/documents/pocket_users/$(uid)) 
-        ? get(/databases/$(database)/documents/pocket_users/$(uid)).data.role 
-        : null;
-    }
-
-    // 判斷是否為 pocket-booking 系統管理員
-    function isSystemAdmin() {
-      return request.auth != null && getUserRole(request.auth.uid) == 'system_admin';
-    }
-
-    // 判斷是否為 pocket-booking 店長
-    function isStoreAdmin() {
-      return request.auth != null && getUserRole(request.auth.uid) == 'store_admin';
+    // 檢查是否為特定租戶的管理員
+    function isTenantAdmin(tenantId) {
+      return isAuthorizedEmail() || (
+        request.auth != null && 
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.tenantId == tenantId
+      );
     }
 
     // 判斷是否有任何有效登入身分
@@ -50,159 +36,34 @@ service cloud.firestore {
     // 作品照片集合
     match /portfolio_items/{itemId} {
       // 只有管理員可以讀取「待分類照片」；其它照片公開
-      allow read: if isAdmin() || isAuthorizedEmail() || isSystemAdmin() || isStoreAdmin() || resource.data.categoryName != '待分類照片';
+      allow read: if isAuthorizedEmail() || resource.data.categoryName != '待分類照片' || isTenantAdmin(resource.data.tenantId);
       // 只有管理員可以建立、更新、刪除
-      allow create, update, delete: if isAdmin() || isAuthorizedEmail() || isSystemAdmin() || isStoreAdmin();
+      allow create, update, delete: if isAuthorizedEmail() || (request.resource.data.tenantId != null && isTenantAdmin(request.resource.data.tenantId));
     }
 
     // 分類集合
     match /categories/{categoryId} {
-      allow read: if isAdmin() || isAuthorizedEmail() || isSystemAdmin() || isStoreAdmin() || resource.data.name != '待分類照片';
-      allow create, update, delete: if isAdmin() || isAuthorizedEmail() || isSystemAdmin() || isStoreAdmin();
+      allow read: if isAuthorizedEmail() || resource.data.name != '待分類照片' || isTenantAdmin(resource.data.tenantId);
+      allow create, update, delete: if isAuthorizedEmail() || (request.resource.data.tenantId != null && isTenantAdmin(request.resource.data.tenantId));
     }
 
     // 管理員名單集合
     match /admins/{adminId} {
-      allow read: if isAdmin() || isAuthorizedEmail();
+      allow read: if isAuthorizedEmail() || (request.auth != null && resource.data.tenantId != null && isTenantAdmin(resource.data.tenantId));
       allow create, update, delete: if isAuthorizedEmail();
     }
 
-    // =============================================
-    // pocket_users 集合（口袋預約角色名單）
-    // =============================================
-    match /pocket_users/{userId} {
-      // 自己可以讀自己、LINE UID 綁定讀取、email 比對讀取、授權 Email 全讀、店長讀自己的員工
-      allow read: if request.auth != null &&
-                     (request.auth.uid == userId ||
-                      resource.data.lineUid == request.auth.uid ||
-                      resource.data.email == request.auth.token.email ||
-                      isAuthorizedEmail() ||
-                      isSystemAdmin() ||
-                      resource.data.tenantId == request.auth.token.email);
-
-      // 自己可以建立（但角色只能是 customer），授權 Email 與系統管理員也可建立
-      allow create: if (request.auth != null &&
-                       request.auth.uid == userId &&
-                       request.resource.data.role == 'customer') ||
-                       isAuthorizedEmail() || 
-                       isSystemAdmin();
-
-      // 自己可以更新自己的非角色欄位；店長可以更新自己員工；授權 Email 全可寫
-      allow update: if request.auth != null &&
-                       (
-                         // 自己更新但不可改 role
-                         (request.auth.uid == userId &&
-                          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])) ||
-                         // LINE UID 綁定更新（sync 流程）
-                         resource.data.lineUid == request.auth.uid ||
-                         resource.data.email == request.auth.token.email ||
-                         // 授權 Email 或系統管理員可以任意修改
-                         isAuthorizedEmail() ||
-                         // 店長可以管理自己 tenantId 底下的員工
-                         request.resource.data.tenantId == request.auth.token.email
-                       );
-
-      // 刪除：自己、lineUid 綁定、email 比對、授權 Email、系統管理員、店長
-      allow delete: if request.auth != null &&
-                       (request.auth.uid == userId ||
-                        resource.data.lineUid == request.auth.uid ||
-                        resource.data.email == request.auth.token.email ||
-                        isAuthorizedEmail() ||
-                        resource.data.tenantId == request.auth.token.email);
-    }
-
-    // =============================================
-    // stores 集合（商店資料）
-    // =============================================
-    match /stores/{storeId} {
-      // 公開讀取：未登入用戶也可瀏覽店家資訊（預約大廳頁面需要）
+    // 租戶資訊 (公開店鋪資訊)
+    match /tenants/{tenantDocId} {
       allow read: if true;
-
-      // 只有授權 Email 或 系統管理員 可以新增 / 刪除商店
-      allow create, delete: if isAuthorizedEmail() || isSystemAdmin();
-
-      // 授權 Email、系統管理員，或商店擁有者可以更新商店資訊
-      allow update: if isAuthorizedEmail() || isSystemAdmin() ||
-                       (isAuthenticated() &&
-                        resource.data.ownerEmail == request.auth.token.email);
+      allow write: if isAuthorizedEmail();
     }
-
-    // =============================================
-    // users 集合（舊版用戶集合，供 portfolio 系統使用）
-    // =============================================
-    match /users/{userId} {
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isAuthorizedEmail());
-      allow create, update: if isAuthenticated() && request.auth.uid == userId;
-      allow delete: if isAuthorizedEmail();
-    }
-
-    // =============================================
-    // services 集合（服務項目 / 課程 / 商品）
-    // =============================================
-    match /services/{serviceId} {
-      // 公開讀取：未登入用戶也可瀏覽服務清單（預約流程需要）
-      allow read: if true;
-
-      // 授權 Email 或店長（tenantId 符合）可以新增服務
-      allow create: if isAuthorizedEmail() ||
-                       (isAuthenticated() && request.resource.data.tenantId == request.auth.token.email);
-
-      // 授權 Email 或服務所屬店長可以更新/刪除服務
-      allow update, delete: if isAuthorizedEmail() ||
-                               (isAuthenticated() && resource.data.tenantId == request.auth.token.email);
-    }
-
-    // =============================================
-    // appointments 集合（預約紀錄）
-    // =============================================
-    match /appointments/{appointmentId} {
-      // 任何人（含未登入）皆可建立預約（客戶送出預約不需強制登入）
-      allow create: if true;
-
-      // 允許讀取：授權 Email、系統管理員、店長、或已綁定的客戶本人
-      allow read: if isAuthenticated() &&
-                     (isAuthorizedEmail() ||
-                      isSystemAdmin() ||
-                      resource.data.tenantId == request.auth.token.email ||
-                      resource.data.tenantId == request.auth.uid ||
-                      resource.data.customerUserId == request.auth.uid);
-
-      // 允許更新：授權 Email、系統管理員、店長、或客戶首次綁定自己
-      allow update: if isAuthenticated() &&
-                       (isAuthorizedEmail() ||
-                        isSystemAdmin() ||
-                        resource.data.tenantId == request.auth.token.email ||
-                        // 允許已登入客戶首次綁定 customerUserId（僅限欄位不存在時）
-                        (request.resource.data.customerUserId == request.auth.uid &&
-                         !('customerUserId' in resource.data)));
-
-      // 軟刪除（規則5）：不允許 delete，改用 status: cancelled
-      allow delete: if false;
-    }
-
-    // =============================================
-    // system_settings 集合（前台功能設定，如分享按鈕、時間軸等）
-    // =============================================
-    match /system_settings/{settingId} {
-      // 所有人可讀取（前台需要載入設定，不需登入）
-      allow read: if true;
-      // 只有管理員或授權 Email 可以修改
-      allow write: if isAdmin() || isAuthorizedEmail();
-    }
-
-    // =============================================
-    // bookings 集合（舊版預約紀錄，供 portfolio 系統暫用）
-    // =============================================
-    match /bookings/{bookingId} {
-      allow read, write: if isAuthenticated();
-    }
-
 
     // =============================================
     // 預設規則：禁止所有其他未明確定義的集合
     // =============================================
     match /{document=**} {
-      allow read, write: if false;
+      allow read, write: if isAuthorizedEmail();
     }
   }
 }

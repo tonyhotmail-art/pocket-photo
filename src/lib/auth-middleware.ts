@@ -1,14 +1,11 @@
+import { env } from "@/lib/env";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { getAdminApp } from "@/lib/firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 import { UserRole } from "@/lib/role-hierarchy";
 
 // 從環境變數取得水管設定（預設 'clerk'）
-const AUTH_PIPE = (process.env.AUTH_PIPE ?? "clerk") as
-    | "clerk"
-    | "firebase"
-    | "clerk-only"
-    | "firebase-only";
+const AUTH_PIPE = env.AUTH_PIPE;
 
 /**
  * 驗證請求是否來自已授權的管理員 (system_admin 或 store_admin)

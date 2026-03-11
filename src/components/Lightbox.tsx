@@ -126,6 +126,15 @@ export default function Lightbox({
     const handleCategoryUpdate = async (category: Category) => {
         if (!activeItem?.id || isUpdating || activeItem.categoryName === category.name) return;
 
+        // 樂觀更新 (Optimistic Update)：先立刻改變本地狀態，讓按鈕瞬間反白
+        const originalCategoryName = activeItem.categoryName;
+        const optimisticItem = { ...activeItem, categoryName: category.name };
+
+        setActiveItem(optimisticItem);
+        if (onItemUpdate) {
+            onItemUpdate(optimisticItem);
+        }
+
         setIsUpdating(true);
         try {
             const res = await authenticatedFetch("/api/works", {
@@ -144,16 +153,16 @@ export default function Lightbox({
 
             console.log("✅ 分類已更新:", category.name);
 
-            // 更新父層狀態
-            if (onItemUpdate) {
-                onItemUpdate({
-                    ...activeItem,
-                    categoryName: category.name
-                });
-            }
-
         } catch (error) {
             console.error("Update category error:", error);
+
+            // 發生錯誤，退回原本狀態
+            const revertedItem = { ...activeItem, categoryName: originalCategoryName };
+            setActiveItem(revertedItem);
+            if (onItemUpdate) {
+                onItemUpdate(revertedItem);
+            }
+
             alert("更新分類失敗,請稍後再試。");
         } finally {
             setIsUpdating(false);

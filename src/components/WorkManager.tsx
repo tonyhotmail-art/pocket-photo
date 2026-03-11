@@ -417,6 +417,25 @@ export default function WorkManager() {
         }
     };
 
+    // 批次永久刪除
+    const handleBatchPermanentDelete = async () => {
+        if (selectedIds.size === 0) return;
+        if (!confirm(`確定要永久刪除選取的 ${selectedIds.size} 件作品嗎？此操作無法復原！`)) return;
+        setIsBatchRecycling(true); // 共用 loading 狀態
+        try {
+            const idList = Array.from(selectedIds).join(",");
+            const res = await fetch(`/api/recycle?ids=${idList}&tenantSlug=${slug}`, { method: "DELETE" });
+            if (!res.ok) throw new Error("批次永久刪除失敗");
+            setSelectedIds(new Set());
+            loadPage(1);
+            loadCategoryCounts();
+        } catch (e) {
+            alert("部分項目操作失敗，請稍後再試。");
+        } finally {
+            setIsBatchRecycling(false);
+        }
+    };
+
     const toggleSelection = (id: string) => {
         const newSet = new Set(selectedIds);
         newSet.has(id) ? newSet.delete(id) : newSet.add(id);
@@ -539,20 +558,33 @@ export default function WorkManager() {
                         {isAllSelected ? "取消全選" : "全選當前頁"}
                     </button>
 
-                    {/* 全選旁的垃圾桶：只有選取 > 0 才顯示 */}
+                    {/* 全選旁的按鈕：只有選取 > 0 才顯示 */}
                     {selectedIds.size > 0 && (
-                        <button
-                            onClick={handleBatchRecycle}
-                            disabled={isBatchRecycling}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-semibold bg-red-50 text-red-500 border border-red-200 hover:bg-red-100 transition-all disabled:opacity-50"
-                            title="移入回收區"
-                        >
-                            {isBatchRecycling
-                                ? <Loader2 size={15} className="animate-spin" />
-                                : <Trash2 size={15} />
-                            }
-                            移入回收區
-                        </button>
+                        <div className="flex items-center gap-2">
+                            {/* 移入回收區 */}
+                            <button
+                                onClick={handleBatchRecycle}
+                                disabled={isBatchRecycling}
+                                className="flex items-center justify-center w-8 h-8 rounded-md bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-all disabled:opacity-50"
+                                title="移入回收區"
+                            >
+                                {isBatchRecycling
+                                    ? <Loader2 size={16} className="animate-spin" />
+                                    : <Trash2 size={16} />}
+                            </button>
+                            {/* 永久刪除 */}
+                            <button
+                                onClick={handleBatchPermanentDelete}
+                                disabled={isBatchRecycling}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-semibold bg-red-50 text-red-500 border border-red-200 hover:bg-red-100 transition-all disabled:opacity-50"
+                                title="永久刪除"
+                            >
+                                {isBatchRecycling
+                                    ? <Loader2 size={15} className="animate-spin" />
+                                    : <Trash2 size={15} />}
+                                直接刪除
+                            </button>
+                        </div>
                     )}
                 </div>
 
@@ -693,21 +725,21 @@ export default function WorkManager() {
                                                         {/* 預覽 */}
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
-                                                            className="p-2 text-gray-300 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                                                            className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
                                                             title="預覽照片"
                                                         >
-                                                            <Maximize2 size={16} />
+                                                            <Maximize2 size={18} strokeWidth={2.5} />
                                                         </button>
                                                         {/* 移入回收區 */}
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); item.id && handleMoveToRecycle(item.id); }}
                                                             disabled={deletingId === item.id}
-                                                            className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                                            className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                                                             title="移入回收區"
                                                         >
                                                             {deletingId === item.id
-                                                                ? <Loader2 size={16} className="animate-spin" />
-                                                                : <Trash2 size={16} />}
+                                                                ? <Loader2 size={18} strokeWidth={2.5} className="animate-spin" />
+                                                                : <Trash2 size={18} strokeWidth={2.5} />}
                                                         </button>
                                                     </div>
                                                 </div>

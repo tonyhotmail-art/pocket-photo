@@ -23,35 +23,13 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
         const displayName = [user.firstName, user.lastName].filter(Boolean).join(' ') || '用戶';
         const userEmail = user.emailAddresses[0]?.emailAddress || '';
 
-        // 情況 1：系統管理員 (system_admin) → 顯示管理員專屬說明頁
-        if (role === 'system_admin') {
-            return (
-                <div className="min-h-screen bg-black/90 text-white flex flex-col items-center justify-center p-6 gap-6">
-                    <div className="flex flex-col items-center gap-4">
-                        <div className="bg-white/10 p-3 rounded-full backdrop-blur-sm border border-white/20">
-                            <Camera className="w-10 h-10 text-white" />
-                        </div>
-                        <h1 className="text-3xl font-bold tracking-tight">口袋相片</h1>
-                    </div>
-                    <div className="flex flex-col items-center gap-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl px-8 py-6 text-center max-w-sm">
-                        <ShieldCheck className="w-8 h-8 text-violet-400" />
-                        <p className="text-white font-bold">您是系統管理員</p>
-                        <p className="text-gray-400 text-sm">請前往 <span className="text-violet-400 font-mono">Pocket Admin</span> 後台管理所有相館。</p>
-                    </div>
-                    <div className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-white/5 rounded-full blur-3xl opacity-50 mix-blend-screen"></div>
-                    </div>
-                </div>
-            );
-        }
-
-        // 情況 2：Clerk Token 上有相館代號 → 直接跳轉
+        // 情況 1：Clerk Token 上有相館代號 → 優先跳轉（不論身分是否為管理員）
         const photoSlug = appAccess?.photo_slug;
         if (photoSlug) {
             redirect(`/${photoSlug}`);
         }
 
-        // 情況 2b（雙重保險）：Clerk Token 延遲未更新，改去 Firebase tenants 集合比對 Email
+        // 情況 1b（雙重保險）：Clerk Token 延遲未更新，改去 Firebase tenants 集合比對 Email
         // 這處理「剛被核准，但 Token 還沒刷新」的空窗期，防止使用者被誤導去填申請表單
         if (userEmail) {
             try {
@@ -98,8 +76,50 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
                 }
             } catch (err) {
                 // Firebase 查詢失敗時靜默降級，不影響主流程
-                console.error('[LandingPage] Firebase tenants 比對失敗:', err);
+                console.error("[LandingPage] Firebase tenants 比對失敗:", err);
             }
+        }
+
+        // 情況 2：系統管理員 (system_admin) 但「沒有專屬相館」 → 顯示管理員專屬說明頁，但提供跳轉選項
+        if (role === 'system_admin' && !isApplyFlow) {
+            return (
+                <div className="min-h-screen bg-black/90 text-white flex flex-col items-center justify-center p-6 gap-6">
+                    <div className="flex flex-col items-center gap-4">
+                        <div className="bg-white/10 p-3 rounded-full backdrop-blur-sm border border-white/20">
+                            <Camera className="w-10 h-10 text-white" />
+                        </div>
+                        <h1 className="text-3xl font-bold tracking-tight">口袋相片</h1>
+                    </div>
+                    <div className="flex flex-col items-center gap-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl px-8 py-6 text-center max-w-sm">
+                        <ShieldCheck className="w-8 h-8 text-violet-400" />
+                        <p className="text-white font-bold text-lg">您是系統管理員</p>
+                        <p className="text-gray-400 text-sm">
+                            您的帳號具備最高管理權限。您可以前往 <span className="text-violet-400 font-mono">Pocket Admin</span> 進行全系統管理，或在此建立測試相館。
+                        </p>
+                    </div>
+                    
+                    <div className="flex flex-col gap-3 w-full max-w-xs">
+                        <a 
+                            href="https://pocket-admin.vercel.app" 
+                            target="_blank"
+                            className="flex items-center justify-center gap-2 px-6 py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-xl font-bold transition-all"
+                        >
+                            前往 Pocket Admin 後台
+                        </a>
+                        <a 
+                            href="/?apply=true"
+                            className="flex items-center justify-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-medium border border-white/10 transition-all"
+                        >
+                            <ImagePlus className="w-4 h-4" />
+                            建立/測試申請相館
+                        </a>
+                    </div>
+
+                    <div className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-white/5 rounded-full blur-3xl opacity-50 mix-blend-screen"></div>
+                    </div>
+                </div>
+            );
         }
 
         // 情況 3a：從「申請相本」進來（?apply=true）→ 直接顯示申請表單

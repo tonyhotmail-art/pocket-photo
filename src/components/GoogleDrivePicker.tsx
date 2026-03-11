@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { clientEnv } from "@/lib/env";
 
 interface GoogleDrivePickerProps {
     onSelect: (files: File[]) => void;
@@ -18,8 +19,8 @@ export default function GoogleDrivePicker({ onSelect, children }: GoogleDrivePic
     const [isApiLoaded, setIsApiLoaded] = useState(false);
     const [isAuthorized, setIsAuthorized] = useState(false);
 
-    const GOOGLE_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_API_KEY || "";
-    const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
+    const GOOGLE_API_KEY = clientEnv.NEXT_PUBLIC_GOOGLE_API_KEY || "";
+    const GOOGLE_CLIENT_ID = clientEnv.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
     const SCOPES = "https://www.googleapis.com/auth/drive.readonly";
 
     useEffect(() => {
@@ -100,7 +101,6 @@ export default function GoogleDrivePicker({ onSelect, children }: GoogleDrivePic
                     console.log(`開始下載: ${file.name} (ID: ${file.id})`);
 
                     try {
-                        // 直接使用 fetch 下載檔案
                         const response = await fetch(
                             `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`,
                             {
@@ -117,7 +117,6 @@ export default function GoogleDrivePicker({ onSelect, children }: GoogleDrivePic
                         const blob = await response.blob();
                         console.log(`下載完成: ${file.name}, 大小: ${blob.size} bytes`);
 
-                        // 轉換為 File 物件
                         const downloadedFile = new File([blob], file.name, {
                             type: file.mimeType || blob.type,
                         });
@@ -129,12 +128,8 @@ export default function GoogleDrivePicker({ onSelect, children }: GoogleDrivePic
                     }
                 }
 
-                console.log(`總共下載了 ${downloadedFiles.length} 個檔案`);
-
                 if (downloadedFiles.length > 0) {
                     onSelect(downloadedFiles);
-                } else {
-                    alert("沒有成功下載任何檔案");
                 }
             } catch (error) {
                 console.error("處理選擇的檔案時發生錯誤:", error);
@@ -142,7 +137,6 @@ export default function GoogleDrivePicker({ onSelect, children }: GoogleDrivePic
             }
         }
     };
-
 
     const handleClick = () => {
         if (!isApiLoaded) {

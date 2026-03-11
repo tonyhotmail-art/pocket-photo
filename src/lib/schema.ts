@@ -13,6 +13,20 @@ export const categorySchema = z.object({
 
 export type Category = z.infer<typeof categorySchema>;
 
+// 租戶 (Tenant) Schema：這是身分證登記處
+export const tenantSchema = z.object({
+    id: z.string().optional(), // Firestore Doc ID (這就是真正的身分證字號)
+    tenantId: z.string(),     // 系統內碼 (與 id 同值)
+    slug: z.string().min(1, "Slug 為必填"), // 對外顯示的姓名 (如 antigravity)
+    name: z.string().min(1, "店鋪名稱為必填"),
+    ownerEmail: z.string().email("無效的 Email").optional(),
+    plan: z.enum(["basic", "pro", "enterprise"]).default("basic"),
+    status: z.enum(["active", "past_due", "trialing"]).default("active"),
+    createdAt: z.any().optional(),
+});
+
+export type Tenant = z.infer<typeof tenantSchema>;
+
 // 作品作品 Schema (原本的 Work 更新為 PortfolioItem)
 export const portfolioItemSchema = z.object({
     id: z.string().optional(),
