@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { Camera, Send, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { applyTenantAction } from '@/actions/admin';
 
 interface ApplicationFormProps {
     userEmail: string;
@@ -40,23 +41,18 @@ export default function ApplicationForm({ userEmail, userName }: ApplicationForm
 
         startTransition(async () => {
             try {
-                const res = await fetch('/api/apply', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ storeName, slug, contactEmail }),
+                const res = await applyTenantAction({
+                    name: storeName,
+                    phone: '', // 原表單未提供 phone，暫時留空或視需求補充
+                    description: `Slug: ${slug}` // 原表單只有 storeName 與 slug
                 });
-                const data = await res.json();
-                if (data.success) {
+                if (res.success) {
                     setResult({
                         success: true,
-                        message: data.message || `您的相館「${storeName}」已自動開通！`,
+                        message: `您的相館「${storeName}」申請已送出，請靜候審核！`,
                     });
-                    // 2 秒後自動跳轉到新開通的相館
-                    setTimeout(() => {
-                        window.location.href = `/${slug}`;
-                    }, 2000);
                 } else {
-                    setResult({ success: false, message: data.error || '送出失敗，請稍後重試。' });
+                    setResult({ success: false, message: res.error || '送出失敗，請稍後重試。' });
                 }
             } catch {
                 setResult({ success: false, message: '網路錯誤，請稍後再試。' });

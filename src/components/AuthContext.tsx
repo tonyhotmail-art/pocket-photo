@@ -5,6 +5,7 @@ import { useUser, useClerk } from "@clerk/nextjs";
 import { auth as firebaseAuth } from "@/lib/firebase";
 import { signInWithCustomToken, signOut as firebaseSignOut, onAuthStateChanged } from "firebase/auth";
 import { UserRole } from "@/lib/role-hierarchy";
+import { syncAdminRoleAction } from "@/actions/admin";
 
 interface AuthContextType {
     userRole: UserRole | null;
@@ -58,9 +59,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const syncRoleToClerk = useCallback(async () => {
         try {
-            const res = await fetch("/api/admin/sync-role", { method: "POST" });
-            if (res.ok) {
-                console.log("[AuthContext] ✅ Clerk Metadata 同步完成");
+            // 呼叫 Server Action 同步權限
+            const res = await syncAdminRoleAction();
+            if (res.success) {
+                console.log("[AuthContext] ✅ 權限同步完成");
+            } else {
+                console.log("[AuthContext] 權限同步結果:", res);
             }
         } catch (err) {
             console.error("[AuthContext] Clerk Metadata 同步失敗:", err);
@@ -81,8 +85,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         try {
             // 🚀 優先權 2：進行角色同步與二次確認
-            const res = await fetch("/api/admin/sync-role", { method: "POST" });
-            if (res.ok) {
+            const res = await syncAdminRoleAction();
+            if (res.success) {
                 if (pmRole === 'store_admin') return 'store_admin';
                 // 如果後台同步成功，預設至少是 store_admin (視 Metadata 而定)
                 return pmRole as UserRole || 'store_admin';
@@ -115,20 +119,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         if (!isLoaded) return;
+
         if (user) {
             const email = user.emailAddresses[0]?.emailAddress;
             const metadata = (user.publicMetadata ?? {}) as Record<string, unknown>;
             const appAccess = metadata.appAccess as Record<string, string> | undefined;
             const slug = appAccess?.photo_slug ?? (metadata.tenantSlug as string) ?? null;
-            setUserTenantSlug(slug);
-            if (slug) fetchTenantId(slug);
 
+            setUserTenantSlug(slug);
+
+            // 啟動連鎖同步：Firebase -> Role -> TenantId
             setRoleChecked(false);
-            syncFirebaseAuth(user.id).then(() => {
-                checkAdminStatus(user.id, email, metadata).then(role => {
-                    setUserRole(role);
-                    setRoleChecked(true);
-                });
+            setFirebaseReady(false);
+
+            syncFirebaseAuth(user.id).then(async () => {
+                // Firebase 已登入成功，此時才有權限讀取 Firestore
+                if (slug) await fetchTenantId(slug);
+                
+                // 接續同步管理員角色到 Clerk
+                const role = await checkAdminStatus(user.id, email, metadata);
+                setUserRole(role);
+                setRoleChecked(true);
             });
         } else {
             setUserRole(null);
