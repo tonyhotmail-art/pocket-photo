@@ -15,7 +15,7 @@ import CategoryManager from "@/components/CategoryManager";
 import WorkManager from "@/components/WorkManager";
 import AdminManagement from "@/components/AdminManagement";
 import { useAuth } from "@/components/AuthContext";
-
+import { accessConfig } from "@/lib/config";
 import { Settings, Image as ImageIcon, Loader2, X, LogOut, MessageCircle, Share2, SlidersHorizontal } from "lucide-react";
 import { clsx } from "clsx";
 import { useSearchParams, useParams } from "next/navigation";
@@ -38,11 +38,40 @@ function HomeContent() {
   const [isWorkManagerEnabled, setIsWorkManagerEnabled] = useState(false); // 延遲載入 WorkManager
   const observerTarget = useRef<HTMLDivElement>(null);
 
-  const { isStaffRole, isAuthenticated, logout, userName, userPhotoUrl, loading: authLoading } = useAuth();
-  const { settings: siteSettings } = useSystemSettings(); // 前台功能設定
+  const { isStaffRole, isAuthenticated, logout, userName, userPhotoUrl, loading: authLoading, userTenantId: authTenantId } = useAuth();
   const searchParams = useSearchParams();
   const initialPhotoId = searchParams.get("id");
   const hasAutoOpened = useRef(false);
+
+  // 用來儲存實際查詢到的 tenantId
+  const [resolvedTenantId, setResolvedTenantId] = useState<string | null>(null);
+
+  // 如果 AuthContext 有提供 tenantId，就優先使用；否則根據 slug 去查
+  useEffect(() => {
+    if (authTenantId) {
+      setResolvedTenantId(authTenantId);
+      return;
+    }
+
+    // 訪客模式：根據 slug 去查詢真正的 tenantId
+    const fetchGuestTenantId = async () => {
+      try {
+        const { collection, query, where, getDocs } = await import("firebase/firestore");
+        const q = query(collection(db, "tenants"), where("slug", "==", slug));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          setResolvedTenantId(snap.docs[0].data().tenantId);
+        } else {
+          setResolvedTenantId(slug); // 回退機制
+        }
+      } catch (err) {
+        setResolvedTenantId(slug);
+      }
+    };
+    fetchGuestTenantId();
+  }, [authTenantId, slug]);
+
+  const { settings: siteSettings } = useSystemSettings(resolvedTenantId || undefined); // 前台功能設定
 
   // 當網址有 id 時，讀取該張照片
   useEffect(() => {
@@ -84,12 +113,12 @@ function HomeContent() {
 
   // 讀取分類（等待認證完成後再查詢，避免 Firebase Auth 還沒同步就觸發 Firestore 規則檢查）
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || !resolvedTenantId) return;
 
     let q = query(
       collection(db, "categories"),
       where("visible", "==", true),
-      where("tenantId", "==", slug),
+      where("tenantId", "==", resolvedTenantId),
       orderBy("order", "asc")
     );
 
@@ -98,7 +127,7 @@ function HomeContent() {
       q = query(
         collection(db, "categories"),
         where("visible", "==", true),
-        where("tenantId", "==", slug),
+        where("tenantId", "==", resolvedTenantId),
         where("name", "!=", "待分類照片"),
         orderBy("name"), // 必須在首位 (不等於查詢的欄位)
         orderBy("order", "asc")
@@ -116,11 +145,11 @@ function HomeContent() {
       setCategories(cats.filter(cat => cat.name !== "__回收區__"));
     });
     return () => unsubscribe();
-  }, [isStaffRole, authLoading, slug]);
+  }, [isStaffRole, authLoading, resolvedTenantId]);
 
   // 讀取作品（等待認證完成後再查詢）
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || !resolvedTenantId) return;
 
     setLoading(true);
     let q;
@@ -128,7 +157,7 @@ function HomeContent() {
     if (selectedTag) {
       q = query(
         collection(db, "portfolio_items"),
-        where("tenantId", "==", slug),
+        where("tenantId", "==", resolvedTenantId),
         where("tags", "array-contains", selectedTag),
         orderBy("categoryOrder", "asc"),
         orderBy("createdAt", "desc"),
@@ -137,7 +166,7 @@ function HomeContent() {
     } else if (selectedCategoryName !== "all") {
       q = query(
         collection(db, "portfolio_items"),
-        where("tenantId", "==", slug),
+        where("tenantId", "==", resolvedTenantId),
         where("categoryName", "==", selectedCategoryName),
         orderBy("categoryOrder", "asc"),
         orderBy("createdAt", "desc"),
@@ -148,7 +177,7 @@ function HomeContent() {
       if (isStaffRole) {
         q = query(
           collection(db, "portfolio_items"),
-          where("tenantId", "==", slug),
+          where("tenantId", "==", resolvedTenantId),
           orderBy("categoryOrder", "asc"),
           orderBy("createdAt", "desc"),
           limit(displayLimit + 1)
@@ -157,7 +186,7 @@ function HomeContent() {
         // 非管理員：由資料庫層級排除「待分類照片」
         q = query(
           collection(db, "portfolio_items"),
-          where("tenantId", "==", slug),
+          where("tenantId", "==", resolvedTenantId),
           where("categoryName", "!=", "待分類照片"),
           orderBy("categoryName"), // 必須在首位
           orderBy("categoryOrder", "asc"),
@@ -192,7 +221,7 @@ function HomeContent() {
     });
 
     return () => unsubscribe();
-  }, [selectedCategoryName, selectedTag, displayLimit, isStaffRole, authLoading, slug]);
+  }, [selectedCategoryName, selectedTag, displayLimit, isStaffRole, authLoading, resolvedTenantId]);
 
   // 動態更新網頁標題
   useEffect(() => {
@@ -600,16 +629,16 @@ function HomeContent() {
               <div className="space-y-12">
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-12">
                   <section className="lg:col-span-12 xl:col-span-5">
-                    <CategoryManager />
+                    {resolvedTenantId && <CategoryManager tenantId={resolvedTenantId} />}
                   </section>
                   <section className="lg:col-span-12 xl:col-span-7">
-                    <AutoForm />
+                    {resolvedTenantId && <AutoForm tenantId={resolvedTenantId} />}
                   </section>
                 </div>
 
                 <hr className="border-gray-100" />
                 <section>
-                  <SystemSettings />
+                  {resolvedTenantId && <SystemSettings tenantId={resolvedTenantId} />}
                 </section>
 
                 {/* 
@@ -662,7 +691,7 @@ function HomeContent() {
                             收合控制面板
                           </button>
                         </div>
-                        <WorkManager />
+                        {resolvedTenantId && <WorkManager tenantId={resolvedTenantId} />}
                       </div>
                     )}
                   </div>

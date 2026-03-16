@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { portfolioItemSchema, type Category, type PortfolioItem } from "@/lib/schema";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, where, limit, getDocs } from "firebase/firestore";
-
+import { accessConfig } from "@/lib/config";
 import { compressImage } from "@/lib/image-compression";
 import { calculateImageHash } from "@/lib/hash";
 import { Loader2, UploadCloud, X, Tag, Cloud } from "lucide-react";
@@ -17,8 +17,7 @@ import { authenticatedFetch } from "@/lib/api-client";
 import exifr from "exifr";
 import { useParams } from "next/navigation";
 
-export default function AutoForm() {
-    const { slug } = useParams() as { slug: string };
+export default function AutoForm({ tenantId }: { tenantId: string }) {
     const [uploading, setUploading] = useState(false);
     const [previews, setPreviews] = useState<string[]>([]);
     const [dragActive, setDragActive] = useState(false);
@@ -40,7 +39,7 @@ export default function AutoForm() {
     } = useForm<PortfolioItem>({
         resolver: zodResolver(portfolioItemSchema),
         defaultValues: {
-            tenantId: slug,
+            tenantId: tenantId,
             tags: [],
             title: "",
             description: "",
@@ -60,9 +59,10 @@ export default function AutoForm() {
     }, []);
 
     useEffect(() => {
+        if (!tenantId) return;
         const q = query(
             collection(db, "categories"),
-            where("tenantId", "==", slug),
+            where("tenantId", "==", tenantId),
             orderBy("order", "asc")
         );
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -140,7 +140,7 @@ export default function AutoForm() {
                 } else {
                     const q = query(
                         collection(db, "portfolio_items"),
-                        where("tenantId", "==", slug),
+                        where("tenantId", "==", tenantId),
                         where("contentHash", "==", contentHash),
                         limit(1)
                     );
@@ -223,7 +223,7 @@ export default function AutoForm() {
                 // 檢查重複
                 const q = query(
                     collection(db, "portfolio_items"),
-                    where("tenantId", "==", slug),
+                    where("tenantId", "==", tenantId),
                     where("contentHash", "==", contentHash),
                     limit(1)
                 );
@@ -301,7 +301,6 @@ export default function AutoForm() {
         try {
             // 獲取目前分類的順序權重
             const categoryOrder = categories.find(c => c.name === values.categoryName)?.order ?? 0;
-            const tenantId = slug;
 
             // 批次處理上傳
             for (const file of selectedFiles) {
@@ -552,7 +551,7 @@ export default function AutoForm() {
                                         await addDoc(q, {
                                             name: newName.trim(),
                                             order: categories.length,
-                                            tenantId: slug,
+                                            tenantId: tenantId,
                                             createdAt: serverTimestamp()
                                         });
                                         setValue("categoryName", newName.trim());

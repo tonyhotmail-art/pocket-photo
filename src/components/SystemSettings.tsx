@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot, setDoc, serverTimestamp } from "firebase/firestore";
-
+import { accessConfig } from "@/lib/config";
 import { Share2, Clock, Loader2, SlidersHorizontal } from "lucide-react";
 import { clsx } from "clsx";
 import { useParams } from "next/navigation";
@@ -27,16 +27,19 @@ const DEFAULT_SETTINGS: Omit<SystemSettingsData, "tenantId"> = {
 };
 
 // 暴露 hook，讓前台也能讀取設定
-export function useSystemSettings() {
-    const { slug } = useParams() as { slug: string };
+export function useSystemSettings(tenantId?: string) {
     const [settings, setSettings] = useState<SystemSettingsData>({
-        tenantId: slug,
+        tenantId: tenantId || "",
         ...DEFAULT_SETTINGS,
     });
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const tenantId = slug;
+        if (!tenantId) {
+            setLoading(false);
+            return;
+        }
+
         const docRef = doc(db, "system_settings", tenantId);
 
         const unsubscribe = onSnapshot(docRef, (snap) => {
@@ -56,9 +59,8 @@ export function useSystemSettings() {
 }
 
 // 後台控制 UI 組件
-export default function SystemSettings() {
-    const { slug } = useParams() as { slug: string };
-    const { settings, loading } = useSystemSettings();
+export default function SystemSettings({ tenantId }: { tenantId: string }) {
+    const { settings, loading } = useSystemSettings(tenantId);
     const [saving, setSaving] = useState(false);
     const [localSiteName, setLocalSiteName] = useState("");
     const [localLineUrl, setLocalLineUrl] = useState("");
@@ -72,9 +74,10 @@ export default function SystemSettings() {
     }, [settings.siteName, settings.lineUrl]);
 
     const updateValue = async (key: keyof Omit<SystemSettingsData, "tenantId" | "updatedAt">, value: any) => {
+        if (!tenantId) return;
         setSaving(true);
         try {
-            const docRef = doc(db, "system_settings", slug);
+            const docRef = doc(db, "system_settings", tenantId);
             await setDoc(docRef, {
                 ...settings,
                 [key]: value,

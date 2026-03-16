@@ -5,7 +5,7 @@ import NextImage from "next/image";
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs, getCountFromServer, orderBy } from "firebase/firestore";
 import { PortfolioItem, Category } from "@/lib/schema";
-
+import { accessConfig } from "@/lib/config";
 import { Loader2, Trash2, Search, Image as ImageIcon, Maximize2, RotateCcw, AlertTriangle, ChevronDown } from "lucide-react";
 import clsx from "clsx";
 import Lightbox from "./Lightbox";
@@ -24,8 +24,7 @@ function calcDaysLeft(deletedAt: string | undefined): number {
 }
 
 // ─── 回收區面板（獨立組件，按需展開載入）────────────────────
-function RecycleBin({ onRestored }: { onRestored: () => void }) {
-    const { slug } = useParams() as { slug: string };
+function RecycleBin({ tenantId, onRestored }: { tenantId: string, onRestored: () => void }) {
     const [open, setOpen] = useState(false);
     const [items, setItems] = useState<(PortfolioItem & { daysLeft?: number })[]>([]);
     const [loading, setLoading] = useState(false);
@@ -34,9 +33,10 @@ function RecycleBin({ onRestored }: { onRestored: () => void }) {
     const [working, setWorking] = useState(false);
 
     const load = useCallback(async () => {
+        if (!tenantId) return;
         setLoading(true);
         try {
-            const res = await fetch(`/api/recycle?tenantSlug=${slug}`);
+            const res = await fetch(`/api/recycle?tenantSlug=${tenantId}`);
             const data = await res.json();
             if (data.success) {
                 setItems(data.items);
@@ -72,10 +72,10 @@ function RecycleBin({ onRestored }: { onRestored: () => void }) {
 
     // 復原
     const handleRestore = async () => {
-        if (selectedIds.size === 0) return;
+        if (selectedIds.size === 0 || !tenantId) return;
         setWorking(true);
         try {
-            await fetch(`/api/recycle?tenantSlug=${slug}`, {
+            await fetch(`/api/recycle?tenantSlug=${tenantId}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ ids: Array.from(selectedIds) }),
@@ -92,12 +92,12 @@ function RecycleBin({ onRestored }: { onRestored: () => void }) {
 
     // 永久刪除
     const handlePermanentDelete = async () => {
-        if (selectedIds.size === 0) return;
+        if (selectedIds.size === 0 || !tenantId) return;
         if (!confirm(`確定要永久刪除選取的 ${selectedIds.size} 張照片嗎？此操作無法還原，圖片檔案也會一併刪除。`)) return;
         setWorking(true);
         try {
             const idList = Array.from(selectedIds).join(",");
-            await fetch(`/api/recycle?ids=${idList}&tenantSlug=${slug}`, { method: "DELETE" });
+            await fetch(`/api/recycle?ids=${idList}&tenantSlug=${tenantId}`, { method: "DELETE" });
             setSelectedIds(new Set());
             await load();
         } catch (e) {
@@ -277,8 +277,7 @@ function RecycleBin({ onRestored }: { onRestored: () => void }) {
 }
 
 // ─── 主組件 WorkManager ────────────────────────────────────
-export default function WorkManager() {
-    const { slug } = useParams() as { slug: string };
+export default function WorkManager({ tenantId }: { tenantId: string }) {
     const [items, setItems] = useState<PortfolioItem[]>([]);
     const [selectedItem, setSelectedItem] = useState<PortfolioItem | null>(null);
     const [loading, setLoading] = useState(true);
@@ -315,10 +314,11 @@ export default function WorkManager() {
     }, [currentPage]);
 
     const loadPage = async (page: number) => {
+        if (!tenantId) return;
         setLoading(true);
         try {
             const response = await fetch(
-                `/api/works/paginate?page=${page}&pageSize=${pageSize}&category=${selectedCategory}&tenantSlug=${slug}`
+                `/api/works/paginate?page=${page}&pageSize=${pageSize}&category=${selectedCategory}&tenantSlug=${tenantId}`
             );
             if (!response.ok) throw new Error("Failed to fetch");
             const result = await response.json();
@@ -336,8 +336,8 @@ export default function WorkManager() {
     };
 
     const loadCategoryCounts = async () => {
+        if (!tenantId) return;
         try {
-            const tenantId = slug;
             const catsQ = query(
                 collection(db, "categories"),
                 where("tenantId", "==", tenantId),
@@ -377,10 +377,11 @@ export default function WorkManager() {
 
     // 軟刪除（單筆 → 移入回收區）
     const handleMoveToRecycle = async (id: string) => {
+        if (!tenantId) return;
         if (!confirm("確定要將這件作品移入回收區嗎？30 天內可復原，30 天後將自動永久刪除。")) return;
         setDeletingId(id);
         try {
-            const res = await fetch(`/api/recycle?tenantSlug=${slug}`, {
+            const res = await fetch(`/api/recycle?tenantSlug=${tenantId}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ ids: [id] }),
@@ -397,11 +398,11 @@ export default function WorkManager() {
 
     // 批次軟刪除
     const handleBatchRecycle = async () => {
-        if (selectedIds.size === 0) return;
+        if (selectedIds.size === 0 || !tenantId) return;
         if (!confirm(`確定要將選取的 ${selectedIds.size} 件作品移入回收區嗎？30 天內可復原。`)) return;
         setIsBatchRecycling(true);
         try {
-            const res = await fetch(`/api/recycle?tenantSlug=${slug}`, {
+            const res = await fetch(`/api/recycle?tenantSlug=${tenantId}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ ids: Array.from(selectedIds) }),
@@ -419,12 +420,12 @@ export default function WorkManager() {
 
     // 批次永久刪除
     const handleBatchPermanentDelete = async () => {
-        if (selectedIds.size === 0) return;
+        if (selectedIds.size === 0 || !tenantId) return;
         if (!confirm(`確定要永久刪除選取的 ${selectedIds.size} 件作品嗎？此操作無法復原！`)) return;
         setIsBatchRecycling(true); // 共用 loading 狀態
         try {
             const idList = Array.from(selectedIds).join(",");
-            const res = await fetch(`/api/recycle?ids=${idList}&tenantSlug=${slug}`, { method: "DELETE" });
+            const res = await fetch(`/api/recycle?ids=${idList}&tenantSlug=${tenantId}`, { method: "DELETE" });
             if (!res.ok) throw new Error("批次永久刪除失敗");
             setSelectedIds(new Set());
             loadPage(1);
@@ -791,7 +792,7 @@ export default function WorkManager() {
             }
 
             {/* ─── 回收區面板（摺疊，按需展開）──── */}
-            <RecycleBin onRestored={() => { loadPage(1); loadCategoryCounts(); }} />
+            <RecycleBin tenantId={tenantId} onRestored={() => { loadPage(1); loadCategoryCounts(); }} />
 
             {/* 底部浮動操作列（選取時顯示） */}
             {

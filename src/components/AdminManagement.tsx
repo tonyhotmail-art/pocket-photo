@@ -30,7 +30,7 @@ interface AdminRecord {
 }
 
 export default function AdminManagement() {
-    const { userTenantSlug } = useAuth();
+    const { userTenantSlug, userTenantId } = useAuth();
     const [admins, setAdmins] = useState<AdminRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [isAdding, setIsAdding] = useState(false);
@@ -43,11 +43,11 @@ export default function AdminManagement() {
     const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
-        if (!userTenantSlug) return;
+        if (!userTenantId) return;
 
         const q = query(
             collection(db, "admins"), 
-            where("tenantId", "==", userTenantSlug),
+            where("tenantId", "==", userTenantId),
             orderBy("createdAt", "desc")
         );
         const unsubscribe = onSnapshot(q, (snapshot) => {

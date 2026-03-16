@@ -4,14 +4,13 @@ import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, doc, deleteDoc, writeBatch, getDocs, where } from "firebase/firestore";
 import { Category, categorySchema } from "@/lib/schema";
-
+import { accessConfig } from "@/lib/config";
 import { Loader2, Plus, Edit2, Trash2, Check, X, GripVertical, Eye, EyeOff } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import clsx from "clsx"; // Assuming clsx is available or needs to be installed/imported
 import { useParams } from "next/navigation";
 
-export default function CategoryManager() {
-    const { slug } = useParams() as { slug: string };
+export default function CategoryManager({ tenantId }: { tenantId: string }) {
     const [categories, setCategories] = useState<Category[]>([]);
     const [loading, setLoading] = useState(true);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -19,7 +18,7 @@ export default function CategoryManager() {
     const [editForm, setEditForm] = useState<Category | null>(null);
 
     useEffect(() => {
-        const tenantId = slug;
+        if (!tenantId) return;
         const q = query(
             collection(db, "categories"),
             where("tenantId", "==", tenantId),
@@ -43,7 +42,6 @@ export default function CategoryManager() {
     // 抽出共用的全局同步邏輯
     const syncPortfolioItems = async (updatedCats: Category[], oldName?: string, newName?: string) => {
         try {
-            const tenantId = slug;
             const batch = writeBatch(db);
             const portfolioRef = collection(db, "portfolio_items");
             const snapshot = await getDocs(query(
@@ -124,7 +122,7 @@ export default function CategoryManager() {
                 ...newCategory,
                 order,
                 visible: true,
-                tenantId: slug
+                tenantId: tenantId
             };
 
             categorySchema.parse(categoryData);
