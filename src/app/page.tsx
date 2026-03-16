@@ -234,7 +234,7 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
                         專業相片管理與分享平台，輕鬆整理、展示您的精彩瞬間。支援高畫質上傳、智慧分類與私密相簿功能。
                     </p>
 
-                    <ul className="space-y-4 mb-10 lg:mb-12">
+                    <ul className="space-y-4 mb-8 lg:mb-10">
                         {["高畫質相片儲存", "智慧相簿分類", "一鍵分享連結", "私密相簿保護"].map((feat) => (
                             <li
                                 key={feat}
@@ -248,6 +248,36 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
                             </li>
                         ))}
                     </ul>
+
+                    {/* AI & SEO 增強區塊 */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-10 lg:mb-12 w-full max-w-xl">
+                        <div className="p-4 rounded-2xl bg-[#c8a84b]/5 border border-[#c8a84b]/20 backdrop-blur-sm group hover:border-[#c8a84b]/40 transition-all">
+                            <div className="flex items-center gap-2 mb-2">
+                                <div className="w-8 h-8 rounded-lg bg-[#c8a84b]/10 flex items-center justify-center">
+                                    <svg className="w-5 h-5 text-[#c8a84b]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                    </svg>
+                                </div>
+                                <h3 className="text-sm font-bold text-[#e8d9b0] tracking-wider">AI 智慧賦能</h3>
+                            </div>
+                            <p className="text-xs text-[#a0aab0] leading-relaxed">
+                                自動場景辨識與色彩優化，AI 助您精準管理海量影像。
+                            </p>
+                        </div>
+                        <div className="p-4 rounded-2xl bg-[#c8a84b]/5 border border-[#c8a84b]/20 backdrop-blur-sm group hover:border-[#c8a84b]/40 transition-all">
+                            <div className="flex items-center gap-2 mb-2">
+                                <div className="w-8 h-8 rounded-lg bg-[#c8a84b]/10 flex items-center justify-center">
+                                    <svg className="w-5 h-5 text-[#c8a84b]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                </div>
+                                <h3 className="text-sm font-bold text-[#e8d9b0] tracking-wider">SEO 搜尋優化</h3>
+                            </div>
+                            <p className="text-xs text-[#a0aab0] leading-relaxed">
+                                內建智慧索引技術，極大化作品曝光，精準接觸潛在客戶。
+                            </p>
+                        </div>
+                    </div>
 
                     {/* 登入與註冊入口 */}
                     <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md lg:max-w-full">

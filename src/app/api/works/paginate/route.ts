@@ -8,7 +8,8 @@ export async function GET(request: NextRequest) {
         const page = parseInt(searchParams.get("page") || "1");
         const pageSize = parseInt(searchParams.get("pageSize") || "20");
         const category = searchParams.get("category") || "all";
-        const tenantId = searchParams.get("tenantSlug") || env.NEXT_PUBLIC_TENANT_ID;
+        // 優先讀取 tenantId，兼容舊版 tenantSlug
+        const tenantId = searchParams.get("tenantId") || searchParams.get("tenantSlug") || env.NEXT_PUBLIC_TENANT_ID;
 
         const result = await portfolioService.getPaginatedItems(tenantId, page, pageSize, category);
 

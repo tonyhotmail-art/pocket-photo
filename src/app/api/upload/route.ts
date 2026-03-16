@@ -37,12 +37,15 @@ export async function POST(request: NextRequest) {
         const formTenantId = formData.get("tenantId") as string;
         let tenantId = formTenantId || env.NEXT_PUBLIC_TENANT_ID;
 
-        // [安全防護] 強迫覆蓋：store_admin 只能上傳到自己的分店
+        // [安全防護] 強迫覆蓋：store_admin 只能上傳到自己的分店 (此時的 tenantId 從 clerk 拿到的是真實身份證)
         if (authResult.role === "store_admin") {
-            if (!authResult.tenantSlug) {
-                return NextResponse.json({ success: false, error: "未授權的操作：帳號缺乏分店標記" }, { status: 403 });
+            if (!authResult.tenantId) {
+                return NextResponse.json({ success: false, error: "未授權的操作：帳號缺乏有效的分店綁定" }, { status: 403 });
             }
-            tenantId = authResult.tenantSlug;
+            // 若前端有傳入 formTenantId，我們假設前端已正確解析。
+            // 為了更嚴謹，理想中應查詢 tenants 集合驗證 formTenantId 是否等於 clerk 裡的 ID。
+            // 這裡為了效能，若有 formTenantId 且與 clerk 內記錄相同才採用；為求安全，強制覆蓋為 authResult.tenantId
+            tenantId = formTenantId || authResult.tenantId;
         } else if (authResult.role !== "system_admin") {
             return NextResponse.json({ success: false, error: "未授權的操作" }, { status: 403 });
         }

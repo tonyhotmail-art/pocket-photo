@@ -42,24 +42,26 @@ export async function POST() {
             return NextResponse.json({ error: "無管理員權限" }, { status: 403 });
         }
 
-        // 1.5 另外查詢 global_tenants 集合，取得此使用者的 photo slug（admins 集合沒有存 slug）
-        const photoSlugFromGlobalTenants = await getPhotoSlugForUser(userId, email);
+        // 1.5 另外查詢 global_tenants 集合，取得此使用者的真實 tenantId (從 type=photo 的紀錄中抓取)
+        const photoTenantIdFromGlobalTenants = await getPhotoTenantIdForUser(userId, email);
 
         // 2. 已確認是管理員，同步 role 與 appAccess 到 Clerk publicMetadata（新 SaaS 架構）
         // 先讀取 Clerk 現有的 appAccess（在 grantRoleAndTenant 成功的情況下，這裡應該已有值）
         const existingAppAccess = (user.publicMetadata?.appAccess as Record<string, string>) ?? {};
 
-        // 來源優先級：global_tenants > admins.tenantSlug > Clerk 現有的 photo_slug
-        const photoSlug =
-            photoSlugFromGlobalTenants ??
+        // 來源優先級：global_tenants 真實 ID > admins.tenantId > (過渡兼容) admins.tenantSlug
+        // 嚴禁使用 existingAppAccess.photo_slug 作為 fallback，否則會導致清除動作失效、自體繁殖舊資料
+        const photoTenantId =
+            photoTenantIdFromGlobalTenants ??
+            (firestoreAdminData.tenantId || undefined) ??
             (firestoreAdminData.tenantSlug || undefined) ??
-            existingAppAccess.photo_slug ??
             undefined;
 
-        // 合併策略：有找到 slug 就寫入，否則保留 Clerk 現有的 appAccess
-        const mergedAppAccess = photoSlug
-            ? { ...existingAppAccess, photo_slug: photoSlug }
-            : existingAppAccess;
+        // 合併策略：有找到真正的租戶 ID 就寫入 (雖然名為 photo_slug，但我們實際塞的是真實的 tenantId)
+        // 若找不到任何 ID，寧可保持空白也不可塞入舊 slug
+        const mergedAppAccess = photoTenantId
+            ? { ...existingAppAccess, photo_slug: photoTenantId }
+            : { ...existingAppAccess, photo_slug: undefined }; // 強制清除舊標記
 
         // client 已在上方宣告，直接使用
         await client.users.updateUserMetadata(userId, {
@@ -68,13 +70,13 @@ export async function POST() {
                 role: firestoreAdminData.role,
                 appAccess: mergedAppAccess,
                 // 保留舊版 tenantSlug 供相容（待全面切換後可移除）
-                tenantSlug: photoSlug ?? null
+                tenantSlug: photoTenantId ?? null
             }
         });
 
-        const finalPhotoSlug = photoSlug ?? null;
+        const finalPhotoTenantId = photoTenantId ?? null;
 
-        console.log(`[SyncRole] ✅ userId: ${userId} 已同步至 Clerk Metadata (role: ${firestoreAdminData.role}, photo_slug: ${finalPhotoSlug})`);
+        console.log(`[SyncRole] ✅ userId: ${userId} 已同步至 Clerk Metadata (role: ${firestoreAdminData.role}, photo_slug: ${finalPhotoTenantId})`);
 
         return NextResponse.json({
             success: true,
@@ -122,6 +124,7 @@ export async function DELETE() {
  */
 interface AdminData {
     role: "system_admin" | "admin" | "store_admin";
+    tenantId?: string;
     tenantSlug?: string;
 }
 
@@ -135,7 +138,7 @@ async function checkFirestoreAdmin(userId: string, email: string | undefined): P
             .get();
         if (!snapById.empty) {
             const data = snapById.docs[0].data();
-            return { role: data.role, tenantSlug: data.tenantSlug };
+            return { role: data.role, tenantId: data.tenantId, tenantSlug: data.tenantSlug };
         }
 
         if (email) {
@@ -145,7 +148,7 @@ async function checkFirestoreAdmin(userId: string, email: string | undefined): P
                 .get();
             if (!snapByEmail.empty) {
                 const data = snapByEmail.docs[0].data();
-                return { role: data.role, tenantSlug: data.tenantSlug };
+                return { role: data.role, tenantId: data.tenantId, tenantSlug: data.tenantSlug };
             }
 
             const superAdmins = [
@@ -165,10 +168,10 @@ async function checkFirestoreAdmin(userId: string, email: string | undefined): P
 }
 
 /**
- * 從 global_tenants 集合查詢使用者被分配到的 photo slug
- * admins 集合沒有存 tenantSlug，所以必須查這裡
+ * 從 global_tenants 集合查詢使用者被分配到的真實 tenantId (非 slug)
+ * 以確保上傳時的溯源與實體租戶 ID 綁定
  */
-async function getPhotoSlugForUser(userId: string, email: string | undefined): Promise<string | null> {
+async function getPhotoTenantIdForUser(userId: string, email: string | undefined): Promise<string | null> {
     try {
         const adminDb = getFirestore(getAdminApp());
 
@@ -180,9 +183,10 @@ async function getPhotoSlugForUser(userId: string, email: string | undefined): P
             .limit(1)
             .get();
         if (!snapById.empty) {
-            const slug = snapById.docs[0].data().slug;
-            console.log(`[SyncRole] 📦 從 global_tenants 查到 slug: ${slug} (status=active)`);
-            return slug || null;
+            const data = snapById.docs[0].data();
+            const tenantId = data.tenantId || data.id || snapById.docs[0].id;
+            console.log(`[SyncRole] 📦 從 global_tenants 查到 tenantId: ${tenantId} (status=active)`);
+            return tenantId;
         }
 
         // 若查不到，改用 email 查（相容早期資料，同樣只取 status=active）
@@ -194,9 +198,10 @@ async function getPhotoSlugForUser(userId: string, email: string | undefined): P
                 .limit(1)
                 .get();
             if (!snapByEmail.empty) {
-                const slug = snapByEmail.docs[0].data().slug;
-                console.log(`[SyncRole] 📦 從 global_tenants（by email）查到 slug: ${slug} (status=active)`);
-                return slug || null;
+                const data = snapByEmail.docs[0].data();
+                const tenantId = data.tenantId || data.id || snapByEmail.docs[0].id;
+                console.log(`[SyncRole] 📦 從 global_tenants（by email）查到 tenantId: ${tenantId} (status=active)`);
+                return tenantId;
             }
         }
 

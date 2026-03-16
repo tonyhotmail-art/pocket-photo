@@ -118,7 +118,8 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const tenantSlug = searchParams.get("tenantSlug") || env.NEXT_PUBLIC_TENANT_ID || "default";
+    // 優先讀取 tenantId，兼容舊版 tenantSlug
+    const tenantSlug = searchParams.get("tenantId") || searchParams.get("tenantSlug") || env.NEXT_PUBLIC_TENANT_ID || "default";
     const db = getDb();
 
     const snap = await db.collection("portfolio_items")

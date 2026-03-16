@@ -10,6 +10,7 @@ import exifr from "exifr";
 import { clsx } from "clsx";
 
 interface CameraUploadButtonProps {
+    tenantId: string;
     className?: string;
     iconProps?: {
         size?: number;
@@ -17,8 +18,7 @@ interface CameraUploadButtonProps {
     }
 }
 
-export default function CameraUploadButton({ className, iconProps }: CameraUploadButtonProps) {
-    const { slug } = useParams() as { slug: string };
+export default function CameraUploadButton({ tenantId, className, iconProps }: CameraUploadButtonProps) {
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -60,7 +60,7 @@ export default function CameraUploadButton({ className, iconProps }: CameraUploa
             if (photoDate) {
                 formData.append("photoDate", photoDate);
             }
-            formData.append("tenantId", slug);
+            formData.append("tenantId", tenantId);
 
             // 5. 呼叫上傳 API
             const uploadRes = await authenticatedFetch("/api/upload", {
@@ -83,7 +83,6 @@ export default function CameraUploadButton({ className, iconProps }: CameraUploa
             alert(`拍照上傳失敗: ${error instanceof Error ? error.message : "未知錯誤"}`);
         } finally {
             setUploading(false);
-            // 清空 input，允許連續拍攝同一照片檔案（極少發生，但好習慣）
             if (fileInputRef.current) {
                 fileInputRef.current.value = "";
             }

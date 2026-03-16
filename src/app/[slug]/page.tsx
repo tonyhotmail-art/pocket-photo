@@ -5,7 +5,7 @@ import NextImage from "next/image";
 import { SignInButton } from "@clerk/nextjs";
 import UserCardDropdown from "@/components/UserCardDropdown";
 import { db } from "@/lib/firebase";
-import { collection, query, orderBy, onSnapshot, where, limit, getDoc, doc } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, where, limit, getDoc, getDocs, doc } from "firebase/firestore";
 import { Category, PortfolioItem } from "@/lib/schema";
 import Sidebar from "@/components/Sidebar";
 import MainGallery from "@/components/MainGallery";
@@ -24,7 +24,31 @@ import CameraUploadButton from "@/components/CameraUploadButton";
 
 
 function HomeContent() {
-  const { slug } = useParams() as { slug: string };
+  const params = useParams();
+  const slug = params?.slug as string;
+  // 從 tenants 集合解析 slug → 真實 tenantId（不需登入）
+  const [resolvedTenantId, setResolvedTenantId] = useState<string>(slug);
+
+  useEffect(() => {
+    /** @description 查詢 Firestore tenants 集合，將網址 slug 映射為永久身分證 tenantId */
+    const resolveSlug = async () => {
+      try {
+        const q = query(collection(db, "tenants"), where("slug", "==", slug));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const realId = snap.docs[0].data().tenantId;
+          setResolvedTenantId(realId);
+          console.log(`[page] ✅ Slug 解析成功：${slug} → ${realId}`);
+        } else {
+          // NOTE: 查無對應文件時，維持 slug 本身（例如 kelly → kelly）
+          console.log(`[page] ⚠️ 查無 slug 對應，維持原值：${slug}`);
+        }
+      } catch (err) {
+        console.error("[page] Slug 解析失敗:", err);
+      }
+    };
+    resolveSlug();
+  }, [slug]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [items, setItems] = useState<PortfolioItem[]>([]);
   const [selectedCategoryName, setSelectedCategoryName] = useState("all");
@@ -89,7 +113,7 @@ function HomeContent() {
     let q = query(
       collection(db, "categories"),
       where("visible", "==", true),
-      where("tenantId", "==", slug),
+      where("tenantId", "==", resolvedTenantId),
       orderBy("order", "asc")
     );
 
@@ -98,7 +122,7 @@ function HomeContent() {
       q = query(
         collection(db, "categories"),
         where("visible", "==", true),
-        where("tenantId", "==", slug),
+        where("tenantId", "==", resolvedTenantId),
         where("name", "!=", "待分類照片"),
         orderBy("name"), // 必須在首位 (不等於查詢的欄位)
         orderBy("order", "asc")
@@ -116,7 +140,7 @@ function HomeContent() {
       setCategories(cats.filter(cat => cat.name !== "__回收區__"));
     });
     return () => unsubscribe();
-  }, [isStaffRole, authLoading, slug]);
+  }, [isStaffRole, authLoading, resolvedTenantId]);
 
   // 讀取作品（等待認證完成後再查詢）
   useEffect(() => {
@@ -128,7 +152,7 @@ function HomeContent() {
     if (selectedTag) {
       q = query(
         collection(db, "portfolio_items"),
-        where("tenantId", "==", slug),
+        where("tenantId", "==", resolvedTenantId),
         where("tags", "array-contains", selectedTag),
         orderBy("categoryOrder", "asc"),
         orderBy("createdAt", "desc"),
@@ -137,7 +161,7 @@ function HomeContent() {
     } else if (selectedCategoryName !== "all") {
       q = query(
         collection(db, "portfolio_items"),
-        where("tenantId", "==", slug),
+        where("tenantId", "==", resolvedTenantId),
         where("categoryName", "==", selectedCategoryName),
         orderBy("categoryOrder", "asc"),
         orderBy("createdAt", "desc"),
@@ -148,7 +172,7 @@ function HomeContent() {
       if (isStaffRole) {
         q = query(
           collection(db, "portfolio_items"),
-          where("tenantId", "==", slug),
+          where("tenantId", "==", resolvedTenantId),
           orderBy("categoryOrder", "asc"),
           orderBy("createdAt", "desc"),
           limit(displayLimit + 1)
@@ -157,7 +181,7 @@ function HomeContent() {
         // 非管理員：由資料庫層級排除「待分類照片」
         q = query(
           collection(db, "portfolio_items"),
-          where("tenantId", "==", slug),
+          where("tenantId", "==", resolvedTenantId),
           where("categoryName", "!=", "待分類照片"),
           orderBy("categoryName"), // 必須在首位
           orderBy("categoryOrder", "asc"),
@@ -192,7 +216,7 @@ function HomeContent() {
     });
 
     return () => unsubscribe();
-  }, [selectedCategoryName, selectedTag, displayLimit, isStaffRole, authLoading, slug]);
+  }, [selectedCategoryName, selectedTag, displayLimit, isStaffRole, authLoading, resolvedTenantId]);
 
   // 動態更新網頁標題
   useEffect(() => {
@@ -215,40 +239,6 @@ function HomeContent() {
     autoNavStartIndex.current = -1;
     shouldOpenFirstItem.current = false;
   };
-
-  // 處理 ESC 鍵關閉燈箱或管理面板
-  useEffect(() => {
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        console.log("[ESC Debug] 按下 ESC 鍵", { selectedItem: !!selectedItem, showAdmin: !!showAdmin });
-        
-        // 1. 優先關閉燈箱
-        if (selectedItem) {
-          console.log("[ESC Debug] 關閉燈箱");
-          setSelectedItem(null);
-          return;
-        }
-        
-        // 2. 若燈箱沒開，則嘗試關閉管理面板
-        if (showAdmin) {
-          const activeEl = document.activeElement;
-          const isTyping = activeEl instanceof HTMLInputElement || 
-                           activeEl instanceof HTMLTextAreaElement || 
-                           activeEl?.getAttribute('contenteditable') === 'true';
-          
-          console.log("[ESC Debug] 嘗試關閉管理面板", { isTyping });
-          
-          if (!isTyping) {
-            setShowAdmin(false);
-          }
-        }
-      }
-    };
-
-    // 使用 capture: true 確保優先攔截事件
-    window.addEventListener("keydown", handleGlobalKeyDown, true);
-    return () => window.removeEventListener("keydown", handleGlobalKeyDown, true);
-  }, [selectedItem, showAdmin]);
 
   useEffect(() => {
     if (showAdmin || selectedItem) {
@@ -329,36 +319,6 @@ function HomeContent() {
     }
   };
 
-  const [isSharing, setIsSharing] = useState(false);
-
-  // 共用的分享邏輯
-  const handleShare = async () => {
-    if (isSharing) return;
-
-    const url = `${window.location.origin}${window.location.pathname}`;
-    if (navigator.share) {
-      try {
-        setIsSharing(true);
-        await navigator.share({
-          title: `Pocket Photo 口袋相片`,
-          url: url
-        });
-      } catch (error: any) {
-        // 忽略使用者取消分享的錯誤 (AbortError)
-        if (error.name !== 'AbortError') {
-          console.error("分享失敗:", error);
-        }
-      } finally {
-        setTimeout(() => setIsSharing(false), 500);
-      }
-    } else if (navigator.clipboard) {
-      navigator.clipboard.writeText(url);
-      alert("網址已複製到剪貼簿");
-    } else {
-      alert("您的瀏覽器不支援自動複製，請手動複製網址：" + url);
-    }
-  };
-
   return (
     <main
       className="min-h-screen bg-[#F8F7F3] text-[#1A1A1A] font-serif"
@@ -369,15 +329,24 @@ function HomeContent() {
         <h1 className="text-xl font-bold tracking-tighter truncate max-w-[70%]">{siteSettings?.siteName || "Pocket Photo"}</h1>
         {siteSettings.allowSharing && (
           <button
-            onClick={handleShare}
-            disabled={isSharing}
-            className={clsx(
-              "absolute right-4 w-9 h-9 flex items-center justify-center bg-white text-[#555555] shadow-sm border border-gray-200 rounded-full hover:scale-105 transition-transform",
-              isSharing && "opacity-50 cursor-not-allowed scale-100 hover:scale-100"
-            )}
+            onClick={() => {
+              const url = `${window.location.origin}${window.location.pathname}`;
+              if (navigator.share) {
+                navigator.share({
+                  title: `Pocket Photo 口袋相片`,
+                  url: url
+                }).catch(console.error);
+              } else if (navigator.clipboard) {
+                navigator.clipboard.writeText(url);
+                alert("網址已複製到剪貼簿");
+              } else {
+                alert("您的瀏覽器不支援自動複製，請手動複製網址：" + url);
+              }
+            }}
+            className="absolute right-4 w-9 h-9 flex items-center justify-center bg-white text-[#555555] shadow-sm border border-gray-200 rounded-full hover:scale-105 transition-transform"
             title="分享整個作品集"
           >
-            {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" strokeWidth={1.5} />}
+            <Share2 className="w-4 h-4" strokeWidth={1.5} />
           </button>
         )}
       </div>
@@ -386,15 +355,24 @@ function HomeContent() {
       <div className="hidden lg:flex fixed top-8 right-8 z-40">
         {siteSettings.allowSharing && (
           <button
-            onClick={handleShare}
-            disabled={isSharing}
-            className={clsx(
-              "w-11 h-11 bg-white text-[#555555] shadow-xl rounded-full hover:scale-110 transition-transform border border-gray-200 flex items-center justify-center",
-              isSharing && "opacity-50 cursor-not-allowed scale-100 hover:scale-100"
-            )}
+            onClick={() => {
+              const url = `${window.location.origin}${window.location.pathname}`;
+              if (navigator.share) {
+                navigator.share({
+                  title: `Pocket Photo 口袋相片`,
+                  url: url
+                }).catch(console.error);
+              } else if (navigator.clipboard) {
+                navigator.clipboard.writeText(url);
+                alert("網址已複製到剪貼簿");
+              } else {
+                alert("您的瀏覽器不支援自動複製，請手動複製網址：" + url);
+              }
+            }}
+            className="w-11 h-11 bg-white text-[#555555] shadow-xl rounded-full hover:scale-110 transition-transform border border-gray-200 flex items-center justify-center"
             title="分享整個作品集"
           >
-            {isSharing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-5 h-5" strokeWidth={1.5} />}
+            <Share2 className="w-5 h-5" strokeWidth={1.5} />
           </button>
         )}
       </div>
@@ -515,6 +493,7 @@ function HomeContent() {
         {/* 1. 相機拍照上傳（本機/管理員專用，放大處理） */}
         {isStaffRole && (
           <CameraUploadButton
+            tenantId={resolvedTenantId}
             className="w-16 h-16 bg-black text-white border-2 border-white/20 shadow-2xl hover:bg-gray-900"
             iconProps={{ size: 28, strokeWidth: 2 }}
           />
@@ -600,16 +579,16 @@ function HomeContent() {
               <div className="space-y-12">
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-12">
                   <section className="lg:col-span-12 xl:col-span-5">
-                    <CategoryManager />
+                    <CategoryManager tenantId={resolvedTenantId} />
                   </section>
                   <section className="lg:col-span-12 xl:col-span-7">
-                    <AutoForm />
+                    <AutoForm tenantId={resolvedTenantId} />
                   </section>
                 </div>
 
                 <hr className="border-gray-100" />
                 <section>
-                  <SystemSettings />
+                  <SystemSettings tenantId={resolvedTenantId} />
                 </section>
 
                 {/* 
@@ -662,7 +641,7 @@ function HomeContent() {
                             收合控制面板
                           </button>
                         </div>
-                        <WorkManager />
+                        <WorkManager tenantId={resolvedTenantId} />
                       </div>
                     )}
                   </div>

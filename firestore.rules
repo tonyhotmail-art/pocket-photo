@@ -24,26 +24,26 @@ service cloud.firestore {
       );
     }
 
-    // 判斷是否有任何有效登入身分
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-
     // =============================================
     // Portfolio 相簿系統集合
     // =============================================
 
     // 作品照片集合
     match /portfolio_items/{itemId} {
-      // 只有管理員可以讀取「待分類照片」；其它照片公開
-      allow read: if isAuthorizedEmail() || resource.data.categoryName != '待分類照片' || isTenantAdmin(resource.data.tenantId);
+      // 藝廊邏輯：
+      // 1. 如果是「待分類照片」，只有管理員可讀。
+      // 2. 其他照片公開讀取。
+      allow read: if (resource.data.categoryName != '待分類照片') || isAuthorizedEmail() || isTenantAdmin(resource.data.tenantId);
+      
       // 只有管理員可以建立、更新、刪除
       allow create, update, delete: if isAuthorizedEmail() || (request.resource.data.tenantId != null && isTenantAdmin(request.resource.data.tenantId));
     }
 
     // 分類集合
     match /categories/{categoryId} {
-      allow read: if isAuthorizedEmail() || resource.data.name != '待分類照片' || isTenantAdmin(resource.data.tenantId);
+      // 藝廊邏輯：公開分類可讀；待分類標籤僅限管理員。
+      allow read: if (resource.data.name != '待分類照片') || isAuthorizedEmail() || isTenantAdmin(resource.data.tenantId);
+      
       allow create, update, delete: if isAuthorizedEmail() || (request.resource.data.tenantId != null && isTenantAdmin(request.resource.data.tenantId));
     }
 

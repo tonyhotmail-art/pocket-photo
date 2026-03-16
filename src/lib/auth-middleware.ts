@@ -48,16 +48,16 @@ export async function verifyAdminAuth() {
             };
         }
 
-        // 從新 SaaS 架構的 appAccess 欄位讀取相片館 slug
+        // 從新 SaaS 架構的 appAccess.photo_slug 讀取 (現在 photo_slug 裡面存的是真實的 tenantId)
         const appAccess = publicMetadata?.appAccess as Record<string, string> | undefined;
-        const tenantSlug = appAccess?.photo_slug ?? (publicMetadata?.tenantSlug as string | undefined);
+        const tenantId = appAccess?.photo_slug ?? (publicMetadata?.tenantSlug as string | undefined);
 
         return {
             success: true,
             userId,
             email,
             role: userRole,
-            tenantSlug
+            tenantId
         };
 
     } catch (error: any) {

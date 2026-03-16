@@ -7,11 +7,8 @@ import { Category, categorySchema } from "@/lib/schema";
 import { accessConfig } from "@/lib/config";
 import { Loader2, Plus, Edit2, Trash2, Check, X, GripVertical, Eye, EyeOff } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
-import clsx from "clsx"; // Assuming clsx is available or needs to be installed/imported
-import { useParams } from "next/navigation";
-
-export default function CategoryManager() {
-    const { slug } = useParams() as { slug: string };
+import clsx from "clsx"; 
+export default function CategoryManager({ tenantId }: { tenantId: string }) {
     const [categories, setCategories] = useState<Category[]>([]);
     const [loading, setLoading] = useState(true);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -19,7 +16,8 @@ export default function CategoryManager() {
     const [editForm, setEditForm] = useState<Category | null>(null);
 
     useEffect(() => {
-        const tenantId = slug;
+        if (!tenantId) return;
+
         const q = query(
             collection(db, "categories"),
             where("tenantId", "==", tenantId),
@@ -38,12 +36,11 @@ export default function CategoryManager() {
         });
 
         return () => unsubscribe();
-    }, []);
+    }, [tenantId]);
 
     // 抽出共用的全局同步邏輯
     const syncPortfolioItems = async (updatedCats: Category[], oldName?: string, newName?: string) => {
         try {
-            const tenantId = slug;
             const batch = writeBatch(db);
             const portfolioRef = collection(db, "portfolio_items");
             const snapshot = await getDocs(query(
@@ -55,8 +52,6 @@ export default function CategoryManager() {
                 const data = docSnap.data();
                 const updates: any = {};
 
-                // 找出該作品對應的新權重
-                // 如果分類改名了，要用新名稱去對應新的 order
                 const searchName = (oldName && data.categoryName === oldName) ? newName : data.categoryName;
                 const matchedCat = updatedCats.find(c => c.name === searchName);
 
@@ -64,7 +59,6 @@ export default function CategoryManager() {
                     updates.categoryOrder = matchedCat.order;
                 }
 
-                // 如果是重新命名，同步更新作品內的名稱記錄
                 if (oldName && newName && data.categoryName === oldName) {
                     updates.categoryName = newName;
                 }
@@ -88,15 +82,10 @@ export default function CategoryManager() {
         const [reorderedItem] = items.splice(result.source.index, 1);
         items.splice(result.destination.index, 0, reorderedItem);
 
-        // 即時更新 UI
         setCategories(items);
-
-        // 批次更新 Firebase 中的分類順序與作品權重
         setLoading(true);
         try {
             const batch = writeBatch(db);
-
-            // 1. 更新分類表順序
             items.forEach((item, index) => {
                 if (item.id) {
                     const categoryRef = doc(db, "categories", item.id);
@@ -104,8 +93,6 @@ export default function CategoryManager() {
                 }
             });
             await batch.commit();
-
-            // 2. 自動同步所有作品權重
             await syncPortfolioItems(items);
         } catch (error) {
             console.error("順序自動同步失敗:", error);
@@ -118,13 +105,12 @@ export default function CategoryManager() {
     const handleAdd = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            // 自動設定 order 為最後一個
             const order = categories.length > 0 ? Math.max(...categories.map(c => c.order)) + 1 : 0;
             const categoryData = {
                 ...newCategory,
                 order,
                 visible: true,
-                tenantId: slug
+                tenantId: tenantId
             };
 
             categorySchema.parse(categoryData);
@@ -144,16 +130,11 @@ export default function CategoryManager() {
         try {
             const { id: _, ...data } = editForm;
             const isRenamed = oldCat.name !== data.name;
-
-            // 1. 更新分類資料
             await updateDoc(doc(db, "categories", id), data);
-
-            // 2. 如果重新命名，同步更新該分類下所有照片的標記
             if (isRenamed) {
                 const updatedCats = categories.map(c => c.id === id ? editForm : c);
                 await syncPortfolioItems(updatedCats, oldCat.name, data.name);
             }
-
             setEditingId(null);
         } catch (error) {
             alert("更新失敗");
@@ -185,7 +166,6 @@ export default function CategoryManager() {
         <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100">
             <h2 className="text-xl font-bold mb-6 text-gray-800">相本管理</h2>
 
-            {/* 新增分類 */}
             <form onSubmit={handleAdd} className="flex flex-col sm:flex-row gap-2 mb-8 items-stretch sm:items-end">
                 <div className="flex-1">
                     <label className="block text-xs text-gray-400 mb-1">快速新增相本名稱</label>
@@ -203,7 +183,6 @@ export default function CategoryManager() {
                 </div>
             </form>
 
-            {/* 分類列表 - 拖拽區域 */}
             <DragDropContext onDragEnd={onDragEnd}>
                 <Droppable droppableId="categories">
                     {(provided) => (

@@ -6,6 +6,7 @@ import { getFirestore, Timestamp } from "firebase-admin/firestore";
 
 interface AdminData {
     role: "system_admin" | "admin" | "store_admin";
+    tenantId?: string;
     tenantSlug?: string;
 }
 
@@ -22,7 +23,7 @@ async function checkFirestoreAdmin(userId: string, email: string | undefined): P
             .get();
         if (!snapById.empty) {
             const data = snapById.docs[0].data();
-            return { role: data.role, tenantSlug: data.tenantSlug };
+            return { role: data.role, tenantId: data.tenantId, tenantSlug: data.tenantSlug };
         }
 
         if (email) {
@@ -32,7 +33,7 @@ async function checkFirestoreAdmin(userId: string, email: string | undefined): P
                 .get();
             if (!snapByEmail.empty) {
                 const data = snapByEmail.docs[0].data();
-                return { role: data.role, tenantSlug: data.tenantSlug };
+                return { role: data.role, tenantId: data.tenantId, tenantSlug: data.tenantSlug };
             }
 
             const superAdmins = [
@@ -52,9 +53,9 @@ async function checkFirestoreAdmin(userId: string, email: string | undefined): P
 }
 
 /**
- * 從 global_tenants 集合查詢使用者被分配到的 photo slug
+ * 從 global_tenants 集合查詢使用者被分配到的 photo tenantId (原：slug)
  */
-async function getPhotoSlugForUser(userId: string, email: string | undefined): Promise<string | null> {
+async function getPhotoTenantIdForUser(userId: string, email: string | undefined): Promise<string | null> {
     try {
         const adminDb = getFirestore(getAdminApp());
 
@@ -65,7 +66,8 @@ async function getPhotoSlugForUser(userId: string, email: string | undefined): P
             .limit(1)
             .get();
         if (!snapById.empty) {
-            return snapById.docs[0].data().slug || null;
+            const data = snapById.docs[0].data();
+            return data.tenantId || data.id || snapById.docs[0].id;
         }
 
         if (email) {
@@ -76,7 +78,8 @@ async function getPhotoSlugForUser(userId: string, email: string | undefined): P
                 .limit(1)
                 .get();
             if (!snapByEmail.empty) {
-                return snapByEmail.docs[0].data().slug || null;
+                const data = snapByEmail.docs[0].data();
+                return data.tenantId || data.id || snapByEmail.docs[0].id;
             }
         }
 
@@ -122,25 +125,25 @@ export async function syncAdminRoleAction() {
             return { success: false, error: "無管理員權限", status: 403 };
         }
 
-        const photoSlugFromGlobalTenants = await getPhotoSlugForUser(userId, email);
+        const photoTenantIdFromGlobalTenants = await getPhotoTenantIdForUser(userId, email);
         const existingAppAccess = (user.publicMetadata?.appAccess as Record<string, string>) ?? {};
 
-        const photoSlug =
-            photoSlugFromGlobalTenants ??
+        const photoTenantId =
+            photoTenantIdFromGlobalTenants ??
+            (firestoreAdminData.tenantId || undefined) ??
             (firestoreAdminData.tenantSlug || undefined) ??
-            existingAppAccess.photo_slug ??
             undefined;
 
-        const mergedAppAccess = photoSlug
-            ? { ...existingAppAccess, photo_slug: photoSlug }
-            : existingAppAccess;
+        const mergedAppAccess = photoTenantId
+            ? { ...existingAppAccess, photo_slug: photoTenantId }
+            : { ...existingAppAccess, photo_slug: undefined };
 
         await client.users.updateUserMetadata(userId, {
             publicMetadata: {
                 ...user.publicMetadata,
                 role: firestoreAdminData.role,
                 appAccess: mergedAppAccess,
-                tenantSlug: photoSlug ?? null
+                tenantSlug: photoTenantId ?? null
             }
         });
 

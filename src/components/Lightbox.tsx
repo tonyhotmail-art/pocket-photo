@@ -447,24 +447,31 @@ export default function Lightbox({
                                 <span className="text-xs md:text-sm text-white/60 uppercase tracking-widest py-2 mr-2 font-bold">
                                     更換分類:
                                 </span>
-                                {categories.map(cat => (
-                                    <button
-                                        key={cat.id || cat.name}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleCategoryUpdate(cat);
-                                        }}
-                                        disabled={isUpdating}
-                                        className={clsx(
-                                            "text-xs md:text-sm px-4 py-2 rounded-md border transition-all uppercase tracking-wider backdrop-blur-md shadow-lg",
-                                            activeItem.categoryName === cat.name
-                                                ? "bg-white text-black border-white cursor-default font-bold ring-2 ring-white/50"
-                                                : "bg-black/40 text-white border-white/30 hover:bg-white/30 hover:text-white hover:border-white hover:scale-105 active:scale-95"
-                                        )}
-                                    >
-                                        {cat.name}
-                                    </button>
-                                ))}
+                                {(() => {
+                                    const seen = new Set();
+                                    return categories.filter(c => {
+                                        if (seen.has(c.name)) return false;
+                                        seen.add(c.name);
+                                        return true;
+                                    }).map(cat => (
+                                        <button
+                                            key={cat.id || cat.name}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleCategoryUpdate(cat);
+                                            }}
+                                            disabled={isUpdating}
+                                            className={clsx(
+                                                "text-xs md:text-sm px-4 py-2 rounded-md border transition-all uppercase tracking-wider backdrop-blur-md shadow-lg",
+                                                activeItem.categoryName === cat.name
+                                                    ? "bg-white text-black border-white cursor-default font-bold ring-2 ring-white/50"
+                                                    : "bg-black/40 text-white border-white/30 hover:bg-white/30 hover:text-white hover:border-white hover:scale-105 active:scale-95"
+                                            )}
+                                        >
+                                            {cat.name}
+                                        </button>
+                                    ));
+                                })()}
                             </div>
                         )}
 
