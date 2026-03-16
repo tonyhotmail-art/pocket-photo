@@ -154,6 +154,7 @@ function HomeContent() {
         collection(db, "portfolio_items"),
         where("tenantId", "==", resolvedTenantId),
         where("tags", "array-contains", selectedTag),
+        orderBy("categoryOrder", "asc"),
         orderBy("createdAt", "desc"),
         limit(displayLimit + 1)
       );
@@ -162,14 +163,16 @@ function HomeContent() {
         collection(db, "portfolio_items"),
         where("tenantId", "==", resolvedTenantId),
         where("categoryName", "==", selectedCategoryName),
+        orderBy("categoryOrder", "asc"),
         orderBy("createdAt", "desc"),
         limit(displayLimit + 1)
       );
     } else {
-      // 全部作品 (all) - 無論身分皆抓取全部，透過客戶端過濾以確保純粹時間軸瀑布流
+      // 全部作品 (all) - 無論身分皆抓取全部，以確保能照分類權重分群，且不被 Firebase 排字 Bug 影響
       q = query(
         collection(db, "portfolio_items"),
         where("tenantId", "==", resolvedTenantId),
+        orderBy("categoryOrder", "asc"),
         orderBy("createdAt", "desc"),
         limit(displayLimit + 1)
       );
