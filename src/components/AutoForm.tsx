@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { portfolioItemSchema, type Category, type PortfolioItem } from "@/lib/schema";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, where, limit, getDocs } from "firebase/firestore";
-import { accessConfig } from "@/lib/config";
+
 import { compressImage } from "@/lib/image-compression";
 import { calculateImageHash } from "@/lib/hash";
 import { Loader2, UploadCloud, X, Tag, Cloud } from "lucide-react";

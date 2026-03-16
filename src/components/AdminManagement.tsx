@@ -43,11 +43,11 @@ export default function AdminManagement() {
     const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
-        if (!userTenantId) return;
+        if (!userTenantSlug) return;
 
         const q = query(
             collection(db, "admins"), 
-            where("tenantId", "==", userTenantId),
+            where("tenantId", "==", userTenantSlug),
             orderBy("createdAt", "desc")
         );
         const unsubscribe = onSnapshot(q, (snapshot) => {

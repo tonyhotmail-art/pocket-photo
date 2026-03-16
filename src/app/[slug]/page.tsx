@@ -15,7 +15,7 @@ import CategoryManager from "@/components/CategoryManager";
 import WorkManager from "@/components/WorkManager";
 import AdminManagement from "@/components/AdminManagement";
 import { useAuth } from "@/components/AuthContext";
-import { accessConfig } from "@/lib/config";
+
 import { Settings, Image as ImageIcon, Loader2, X, LogOut, MessageCircle, Share2, SlidersHorizontal } from "lucide-react";
 import { clsx } from "clsx";
 import { useSearchParams, useParams } from "next/navigation";
