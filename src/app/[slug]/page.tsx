@@ -154,7 +154,6 @@ function HomeContent() {
         collection(db, "portfolio_items"),
         where("tenantId", "==", resolvedTenantId),
         where("tags", "array-contains", selectedTag),
-        orderBy("categoryOrder", "asc"),
         orderBy("createdAt", "desc"),
         limit(displayLimit + 1)
       );
@@ -163,52 +162,43 @@ function HomeContent() {
         collection(db, "portfolio_items"),
         where("tenantId", "==", resolvedTenantId),
         where("categoryName", "==", selectedCategoryName),
-        orderBy("categoryOrder", "asc"),
         orderBy("createdAt", "desc"),
         limit(displayLimit + 1)
       );
     } else {
-      // 全部作品 (all)
-      if (isStaffRole) {
-        q = query(
-          collection(db, "portfolio_items"),
-          where("tenantId", "==", resolvedTenantId),
-          orderBy("categoryOrder", "asc"),
-          orderBy("createdAt", "desc"),
-          limit(displayLimit + 1)
-        );
-      } else {
-        // 非管理員：由資料庫層級排除「待分類照片」
-        q = query(
-          collection(db, "portfolio_items"),
-          where("tenantId", "==", resolvedTenantId),
-          where("categoryName", "!=", "待分類照片"),
-          orderBy("categoryName"), // 必須在首位
-          orderBy("categoryOrder", "asc"),
-          orderBy("createdAt", "desc"),
-          limit(displayLimit + 1)
-        );
-      }
+      // 全部作品 (all) - 無論身分皆抓取全部，透過客戶端過濾以確保純粹時間軸瀑布流
+      q = query(
+        collection(db, "portfolio_items"),
+        where("tenantId", "==", resolvedTenantId),
+        orderBy("createdAt", "desc"),
+        limit(displayLimit + 1)
+      );
     }
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      let allItems = snapshot.docs.map(doc => ({
+      const fetchedCount = snapshot.docs.length;
+      const hasNextPage = fetchedCount > displayLimit;
+      
+      // 確保只取目前需要顯示的數量進行解析
+      const docsToProcess = hasNextPage ? snapshot.docs.slice(0, displayLimit) : snapshot.docs;
+      
+      let finalItems = docsToProcess.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as PortfolioItem[];
 
-      // 如果選擇的分類是全部，在客戶端將回收區的照片過濾掉
+      // 如果選擇的分類是全部，在客戶端過濾掉不該顯示的照片
+      // 如此能確保「待分類與回收區」不會在資料庫排序中破壞最新的時間瀑布流
       if (selectedCategoryName === "all") {
-        allItems = allItems.filter(item => item.categoryName !== "__回收區__");
+        finalItems = finalItems.filter(item => {
+          if (item.categoryName === "__回收區__") return false;
+          if (!isStaffRole && item.categoryName === "待分類照片") return false;
+          return true;
+        });
       }
 
-      if (allItems.length > displayLimit) {
-        setHasMore(true);
-        setItems(allItems.slice(0, displayLimit));
-      } else {
-        setHasMore(false);
-        setItems(allItems);
-      }
+      setHasMore(hasNextPage);
+      setItems(finalItems);
       setLoading(false);
     }, (error) => {
       console.error("Firestore 讀取錯誤:", error);
