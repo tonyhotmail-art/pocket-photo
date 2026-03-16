@@ -5,7 +5,7 @@ import NextImage from "next/image";
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs, getCountFromServer, orderBy } from "firebase/firestore";
 import { PortfolioItem, Category } from "@/lib/schema";
-import { accessConfig } from "@/lib/config";
+
 import { Loader2, Trash2, Search, Image as ImageIcon, Maximize2, RotateCcw, AlertTriangle, ChevronDown } from "lucide-react";
 import clsx from "clsx";
 import Lightbox from "./Lightbox";

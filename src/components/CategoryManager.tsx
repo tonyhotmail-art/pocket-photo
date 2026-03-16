@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, doc, deleteDoc, writeBatch, getDocs, where } from "firebase/firestore";
 import { Category, categorySchema } from "@/lib/schema";
-import { accessConfig } from "@/lib/config";
+
 import { Loader2, Plus, Edit2, Trash2, Check, X, GripVertical, Eye, EyeOff } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import clsx from "clsx"; // Assuming clsx is available or needs to be installed/imported

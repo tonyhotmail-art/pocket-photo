@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot, setDoc, serverTimestamp } from "firebase/firestore";
-import { accessConfig } from "@/lib/config";
+
 import { Share2, Clock, Loader2, SlidersHorizontal } from "lucide-react";
 import { clsx } from "clsx";
 import { useParams } from "next/navigation";
