@@ -33,12 +33,13 @@ function HomeContent() {
     /** @description 查詢 Firestore tenants 集合，將網址 slug 映射為永久身分證 tenantId */
     const resolveSlug = async () => {
       try {
-        const q = query(collection(db, "tenants"), where("slug", "==", slug));
+        const searchSlug = slug?.toLowerCase();
+        const q = query(collection(db, "tenants"), where("slug", "==", searchSlug));
         const snap = await getDocs(q);
         if (!snap.empty) {
           const realId = snap.docs[0].data().tenantId;
           setResolvedTenantId(realId);
-          console.log(`[page] ✅ Slug 解析成功：${slug} → ${realId}`);
+          console.log(`[page] ✅ Slug 解析成功：${searchSlug} → ${realId}`);
         } else {
           // NOTE: 查無對應文件時，維持 slug 本身（例如 kelly → kelly）
           console.log(`[page] ⚠️ 查無 slug 對應，維持原值：${slug}`);
