@@ -1,8 +1,11 @@
 "use client";
 
 import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
+import { usePathname } from "next/navigation";
 
 export default function UserAuth() {
+    const pathname = usePathname();
+
     return (
         <div className="flex items-center gap-4">
             <SignedOut>
@@ -13,7 +16,7 @@ export default function UserAuth() {
                 </SignInButton>
             </SignedOut>
             <SignedIn>
-                <UserButton />
+                <UserButton afterSignOutUrl={pathname} />
             </SignedIn>
         </div>
     );

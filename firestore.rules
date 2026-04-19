@@ -30,10 +30,10 @@ service cloud.firestore {
 
     // 作品照片集合
     match /portfolio_items/{itemId} {
-      // 藝廊邏輯：
-      // 1. 如果是「待分類照片」，只有管理員可讀。
-      // 2. 其他照片公開讀取。
-      allow read: if (resource.data.categoryName != '待分類照片') || isAuthorizedEmail() || isTenantAdmin(resource.data.tenantId);
+      // 藝廊邏輯 (isPublic 升級版)：
+      // 1. isPublic == true 的照片，公開可讀。
+      // 2. isPublic == false (待分類/回收區)，僅管理員可讀。
+      allow read: if (resource.data.isPublic == true) || isAuthorizedEmail() || isTenantAdmin(resource.data.tenantId);
       
       // 只有管理員可以建立、更新、刪除
       allow create, update, delete: if isAuthorizedEmail() || (request.resource.data.tenantId != null && isTenantAdmin(request.resource.data.tenantId));
@@ -41,22 +41,29 @@ service cloud.firestore {
 
     // 分類集合
     match /categories/{categoryId} {
-      // 藝廊邏輯：公開分類可讀；待分類標籤僅限管理員。
-      allow read: if (resource.data.name != '待分類照片') || isAuthorizedEmail() || isTenantAdmin(resource.data.tenantId);
+      // 藝廊邏輯 (isPublic 升級版)：公開分類可讀。
+      // NOTE: categories 目前尚無 isPublic 欄位，暫以 visible 欄位做為替代
+      allow read: if (resource.data.visible == true) || isAuthorizedEmail() || isTenantAdmin(resource.data.tenantId);
       
       allow create, update, delete: if isAuthorizedEmail() || (request.resource.data.tenantId != null && isTenantAdmin(request.resource.data.tenantId));
     }
 
     // 管理員名單集合
     match /admins/{adminId} {
-      allow read: if isAuthorizedEmail() || (request.auth != null && resource.data.tenantId != null && isTenantAdmin(resource.data.tenantId));
+      allow read: if isAuthorizedEmail() || (request.auth != null && resource.data.tenantId != null && isTenantAdmin(request.resource.data.tenantId));
       allow create, update, delete: if isAuthorizedEmail();
     }
 
     // 租戶資訊 (公開店鋪資訊)
     match /tenants/{tenantDocId} {
       allow read: if true;
-      allow write: if isAuthorizedEmail();
+      allow write: if isAuthorizedEmail() || isTenantAdmin(resource.data.tenantId);
+    }
+
+    // 系統設定（前台需讀取展示設定，如網站名稱、分享開關等）
+    match /system_settings/{settingId} {
+      allow read: if true;
+      allow write: if isAuthorizedEmail() || isTenantAdmin(settingId);
     }
 
     // =============================================

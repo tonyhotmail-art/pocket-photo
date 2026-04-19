@@ -49,6 +49,7 @@ export default function AutoForm({ tenantId }: AutoFormProps) {
             description: "",
             categoryOrder: 0,
             categoryName: "待分類照片",
+            isPublic: true, // NOTE: 預設為公開，Service 層會根據分類自動覆寫
         }
     });
 

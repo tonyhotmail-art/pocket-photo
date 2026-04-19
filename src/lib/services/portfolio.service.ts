@@ -36,6 +36,10 @@ export class PortfolioService {
         // 1. 上傳至 Cloudflare R2
         const imageUrl = await uploadToR2(fileBuffer, fileType, tenantId, originalName);
 
+        // NOTE: 非公開分類清單 — 此清單決定訪客是否可見
+        const PRIVATE_CATEGORIES = ['待分類照片', '__回收區__'];
+        const isPublic = !PRIVATE_CATEGORIES.includes(metadata.categoryName || '');
+
         // 2. 準備 Firestore 資料
         const itemData = {
             imageUrl,
@@ -48,6 +52,7 @@ export class PortfolioService {
             contentHash: metadata.contentHash,
             description: metadata.description || "",
             visible: true,
+            isPublic, // 自動根據分類判定訪客可見性
             // 若有 EXIF 拍攝時間則使用，否則以上傳時間作為 fallback
             photoDate: metadata.photoDate || new Date().toISOString(),
         };

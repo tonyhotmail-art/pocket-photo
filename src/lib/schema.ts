@@ -41,6 +41,7 @@ export const portfolioItemSchema = z.object({
     deletedAt: z.string().optional(), // 移入回收區的時間 (ISO 字串，30天後永久刪除)
     contentHash: z.string().optional(), // 內容指紋 (SHA-256)
     tenantId: z.string().optional(),
+    isPublic: z.boolean().optional(), // 控制訪客可見性：由 Service 層自動設定
 });
 
 

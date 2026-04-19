@@ -16,7 +16,7 @@ import WorkManager from "@/components/WorkManager";
 import AdminManagement from "@/components/AdminManagement";
 import { useAuth } from "@/components/AuthContext";
 import { accessConfig } from "@/lib/config";
-import { Settings, Image as ImageIcon, Loader2, X, LogOut, MessageCircle, Share2, SlidersHorizontal } from "lucide-react";
+import { Settings, Image as ImageIcon, Loader2, X, LogOut, MessageCircle, Share2, SlidersHorizontal, Eye } from "lucide-react";
 import { clsx } from "clsx";
 import { useSearchParams, useParams } from "next/navigation";
 import SystemSettings, { useSystemSettings } from "@/components/SystemSettings";
@@ -62,9 +62,12 @@ function HomeContent() {
   const [isWorkManagerEnabled, setIsWorkManagerEnabled] = useState(false); // 延遲載入 WorkManager
   const observerTarget = useRef<HTMLDivElement>(null);
 
-  const { isStaffRole, isAuthenticated, logout, userName, userPhotoUrl, loading: authLoading } = useAuth();
-  const { settings: siteSettings } = useSystemSettings(); // 前台功能設定
+  const { isStaffRole: rawIsStaffRole, isAuthenticated, logout, userName, userPhotoUrl, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
+  const previewMode = searchParams.get("mode") === "preview";
+  const isStaffRole = rawIsStaffRole && !previewMode;
+
+  const { settings: siteSettings } = useSystemSettings(); // 前台功能設定
   const initialPhotoId = searchParams.get("id");
   const hasAutoOpened = useRef(false);
 
@@ -149,33 +152,40 @@ function HomeContent() {
     setLoading(true);
     let q;
 
+    // NOTE: 非管理員必須加上 isPublic == true 過濾，
+    // 因為 Firestore 安全規則要求查詢條件必須與規則一致。
+    const publicFilter = !isStaffRole;
+
     if (selectedTag) {
-      q = query(
-        collection(db, "portfolio_items"),
+      const constraints: any[] = [
         where("tenantId", "==", resolvedTenantId),
         where("tags", "array-contains", selectedTag),
+        ...(publicFilter ? [where("isPublic", "==", true)] : []),
         orderBy("categoryOrder", "asc"),
         orderBy("createdAt", "desc"),
         limit(displayLimit + 1)
-      );
+      ];
+      q = query(collection(db, "portfolio_items"), ...constraints);
     } else if (selectedCategoryName !== "all") {
-      q = query(
-        collection(db, "portfolio_items"),
+      const constraints: any[] = [
         where("tenantId", "==", resolvedTenantId),
         where("categoryName", "==", selectedCategoryName),
+        ...(publicFilter ? [where("isPublic", "==", true)] : []),
         orderBy("categoryOrder", "asc"),
         orderBy("createdAt", "desc"),
         limit(displayLimit + 1)
-      );
+      ];
+      q = query(collection(db, "portfolio_items"), ...constraints);
     } else {
-      // 全部作品 (all) - 無論身分皆抓取全部，以確保能照分類權重分群，且不被 Firebase 排字 Bug 影響
-      q = query(
-        collection(db, "portfolio_items"),
+      // 全部作品 (all)
+      const constraints: any[] = [
         where("tenantId", "==", resolvedTenantId),
+        ...(publicFilter ? [where("isPublic", "==", true)] : []),
         orderBy("categoryOrder", "asc"),
         orderBy("createdAt", "desc"),
         limit(displayLimit + 1)
-      );
+      ];
+      q = query(collection(db, "portfolio_items"), ...constraints);
     }
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -544,6 +554,16 @@ function HomeContent() {
                 )}
               </div>
               <div className="flex items-center gap-1">
+                <button
+                  onClick={() => {
+                    window.open(`/${slug}?mode=preview`, '_blank');
+                  }}
+                  className="flex items-center gap-1.5 text-xs text-[#888888] hover:text-white hover:bg-[#2a2a2a] px-3 py-2 rounded-lg transition-colors"
+                  title="訪客預覽"
+                >
+                  <Eye size={14} />
+                  <span className="hidden md:inline tracking-wide">預覽</span>
+                </button>
                 <button
                   onClick={() => {
                     logout();
