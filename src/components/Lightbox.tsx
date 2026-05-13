@@ -2,7 +2,7 @@
 
 import { PortfolioItem, Category } from "@/lib/schema";
 import NextImage from "next/image";
-import { X, ChevronLeft, ChevronRight, Trash2, Loader2, Share2, Link as LinkIcon, Copy, MessageCircle } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Trash2, Loader2, Share2, Link as LinkIcon, MessageCircle, Download } from "lucide-react";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { clsx } from "clsx";
 import { authenticatedFetch } from "@/lib/api-client";
@@ -46,6 +46,7 @@ export default function Lightbox({
     const initialItemId = useRef<string | null>(null);
     const [showShareMenu, setShowShareMenu] = useState(false);
     const [isCopied, setIsCopied] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
 
     // 當開啟或項目清單變動時，同步狀態
     useEffect(() => {
@@ -120,6 +121,39 @@ export default function Lightbox({
             alert("刪除失敗,請稍後再試。");
         } finally {
             setIsDeleting(false);
+        }
+    };
+
+    const handleDownload = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!activeItem?.id || isDownloading) return;
+
+        setIsDownloading(true);
+        try {
+            const res = await authenticatedFetch(`/api/works/${activeItem.id}/download`);
+            if (!res.ok) {
+                throw new Error("下載失敗");
+            }
+
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const disposition = res.headers.get("Content-Disposition") || "";
+            const filenameMatch = disposition.match(/filename\*=UTF-8''([^;]+)/);
+            const fallbackName = `${activeItem.title || "pocket-photo"}.jpg`;
+            const filename = filenameMatch ? decodeURIComponent(filenameMatch[1]) : fallbackName;
+
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error("Download error:", error);
+            alert("下載失敗，請稍後再試。");
+        } finally {
+            setIsDownloading(false);
         }
     };
 
@@ -313,18 +347,34 @@ export default function Lightbox({
                     {/* 右側：管理員功能與關閉 */}
                     <div className="flex items-center gap-3 pointer-events-auto">
                         {isAdmin && (
-                            <button
-                                onClick={handleDelete}
-                                disabled={isDeleting}
-                                className="text-white/80 hover:text-red-400 p-2.5 rounded-full transition-all bg-black/40 backdrop-blur-md hover:bg-black/60 shadow-sm border border-white/10 pointer-events-auto"
-                                title="管理員：刪除此作品"
-                            >
-                                {isDeleting ? (
-                                    <Loader2 className="animate-spin" size={20} />
-                                ) : (
-                                    <Trash2 size={20} strokeWidth={1.5} />
-                                )}
-                            </button>
+                            <>
+                                <button
+                                    onClick={handleDownload}
+                                    disabled={isDownloading}
+                                    className="text-white/80 hover:text-white p-2.5 rounded-full transition-all bg-black/40 backdrop-blur-md hover:bg-black/60 shadow-sm border border-white/10 pointer-events-auto"
+                                    title="管理員：下載此作品"
+                                    aria-label="下載此作品"
+                                >
+                                    {isDownloading ? (
+                                        <Loader2 className="animate-spin" size={20} />
+                                    ) : (
+                                        <Download size={20} strokeWidth={1.5} />
+                                    )}
+                                </button>
+                                <button
+                                    onClick={handleDelete}
+                                    disabled={isDeleting}
+                                    className="text-white/80 hover:text-red-400 p-2.5 rounded-full transition-all bg-black/40 backdrop-blur-md hover:bg-black/60 shadow-sm border border-white/10 pointer-events-auto"
+                                    title="管理員：刪除此作品"
+                                    aria-label="刪除此作品"
+                                >
+                                    {isDeleting ? (
+                                        <Loader2 className="animate-spin" size={20} />
+                                    ) : (
+                                        <Trash2 size={20} strokeWidth={1.5} />
+                                    )}
+                                </button>
+                            </>
                         )}
 
                         {/* 分享按鈕（受後台設定控制） */}

@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { useUser, useClerk } from "@clerk/nextjs";
 import { auth as firebaseAuth } from "@/lib/firebase";
-import { signInWithCustomToken, signOut as firebaseSignOut, onAuthStateChanged } from "firebase/auth";
+import { signInWithCustomToken, signOut as firebaseSignOut } from "firebase/auth";
 import { UserRole } from "@/lib/role-hierarchy";
 import { syncAdminRoleAction } from "@/actions/admin";
 
@@ -35,6 +35,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const firebaseSyncRef = useRef<string | null>(null);
 
     const isStaffRole = userRole === "system_admin" || userRole === "store_admin";
+
+    useEffect(() => {
+        const isFirestoreAbortError = (reason: unknown) => {
+            if (!(reason instanceof DOMException) && !(reason instanceof Error)) return false;
+            return reason.name === "AbortError" && reason.message === "signal is aborted without reason";
+        };
+
+        const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+            if (isFirestoreAbortError(event.reason)) {
+                event.preventDefault();
+            }
+        };
+
+        const handleWindowError = (event: ErrorEvent) => {
+            if (isFirestoreAbortError(event.error)) {
+                event.preventDefault();
+            }
+        };
+
+        window.addEventListener("unhandledrejection", handleUnhandledRejection);
+        window.addEventListener("error", handleWindowError);
+
+        return () => {
+            window.removeEventListener("unhandledrejection", handleUnhandledRejection);
+            window.removeEventListener("error", handleWindowError);
+        };
+    }, []);
 
     // 從 Slug 查詢真正的 TenantId (身分證)
     const fetchTenantId = useCallback(async (slug: string) => {

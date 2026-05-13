@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { env } from "./env";
 import { v4 as uuidv4 } from "uuid";
 
@@ -86,4 +86,34 @@ export async function deleteFromR2(fileUrl: string): Promise<void> {
         console.error("[R2] Delete error:", error);
         // 不拋出錯誤，避免阻擋主流程 (例如 DB 刪除)
     }
+}
+
+export function getR2KeyFromUrl(fileUrl: string): string {
+    if (!fileUrl) {
+        throw new Error("Missing R2 file URL");
+    }
+
+    let fileKey = "";
+
+    if (env.R2_PUBLIC_DOMAIN && fileUrl.startsWith(env.R2_PUBLIC_DOMAIN)) {
+        fileKey = fileUrl.replace(`${env.R2_PUBLIC_DOMAIN}/`, "");
+    } else if (fileUrl.startsWith("http")) {
+        const urlObj = new URL(fileUrl);
+        fileKey = urlObj.pathname.substring(1);
+    } else {
+        fileKey = fileUrl;
+    }
+
+    return decodeURIComponent(fileKey);
+}
+
+export async function getFromR2(fileUrl: string) {
+    const key = getR2KeyFromUrl(fileUrl);
+
+    const command = new GetObjectCommand({
+        Bucket: env.R2_BUCKET_NAME,
+        Key: key,
+    });
+
+    return await r2Client.send(command);
 }
