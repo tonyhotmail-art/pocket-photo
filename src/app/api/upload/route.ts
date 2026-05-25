@@ -3,6 +3,35 @@ import { verifyAdminAuth } from "@/lib/auth-middleware";
 import { portfolioService } from "@/lib/services/portfolio.service";
 import { env } from "@/lib/env";
 
+const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = new Set([
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+    "image/avif",
+]);
+
+function hasValidImageSignature(buffer: Buffer, contentType: string) {
+    if (contentType === "image/jpeg") {
+        return buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+    }
+    if (contentType === "image/png") {
+        return buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    }
+    if (contentType === "image/webp") {
+        return buffer.subarray(0, 4).toString("ascii") === "RIFF" && buffer.subarray(8, 12).toString("ascii") === "WEBP";
+    }
+    if (contentType === "image/gif") {
+        const header = buffer.subarray(0, 6).toString("ascii");
+        return header === "GIF87a" || header === "GIF89a";
+    }
+    if (contentType === "image/avif") {
+        return buffer.subarray(4, 12).toString("ascii").includes("ftypavif");
+    }
+    return false;
+}
+
 /**
  * Upload API (R2 + Firestore Transaction)
  * 接收 FormData，呼叫 Service 層完成上傳與資料寫入
@@ -54,11 +83,23 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: false, error: "未提供檔案" }, { status: 400 });
         }
 
+        if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+            return NextResponse.json({ success: false, error: "不支援的圖片格式" }, { status: 400 });
+        }
+
+        if (file.size > MAX_UPLOAD_BYTES) {
+            return NextResponse.json({ success: false, error: "檔案過大，請壓縮後再上傳" }, { status: 413 });
+        }
+
         // 轉換 File 為 Buffer
         const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
 
-        // 呼叫 Service 層處理
+        if (!hasValidImageSignature(buffer, file.type)) {
+            return NextResponse.json({ success: false, error: "檔案內容與圖片格式不符" }, { status: 400 });
+        }
+
+        // 呼叫 Service 層處理（title 已合併至 metadata）
         const itemId = await portfolioService.uploadAndCreateItem(
             buffer,
             file.type,

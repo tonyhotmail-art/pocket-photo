@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { r2Client, deleteFromR2 } from "@/lib/r2";
+import { r2Client } from "@/lib/r2";
 import { env } from "@/lib/env";
 import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { verifyAdminAuth } from "@/lib/auth-middleware";
@@ -29,17 +29,35 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "No imageUrl provided" }, { status: 400 });
         }
 
-        // 從 URL 解析 Key
-        // 假設 URL 格式為 https://R2_PUBLIC_DOMAIN/folder/filename
+        // 從 URL 解析 Key，並限制店長只能刪除自己租戶目錄下的檔案
         let key = imageUrl;
         if (imageUrl.startsWith("http")) {
             try {
                 const url = new URL(imageUrl);
+                const publicDomain = env.R2_PUBLIC_DOMAIN ? new URL(env.R2_PUBLIC_DOMAIN) : null;
+                if (!publicDomain || url.hostname !== publicDomain.hostname) {
+                    return NextResponse.json(
+                        { success: false, error: "不允許刪除非本系統網域的檔案" },
+                        { status: 400 }
+                    );
+                }
                 // 移除開頭的斜線
                 key = url.pathname.substring(1);
             } catch (e) {
                 console.error("Invalid URL format:", imageUrl);
-                // 如果解析失敗，嘗試直接使用傳入的字串，或視為錯誤
+                return NextResponse.json(
+                    { success: false, error: "Invalid imageUrl format" },
+                    { status: 400 }
+                );
+            }
+        }
+
+        if (authResult.role !== "system_admin") {
+            if (!authResult.tenantId || !key.startsWith(`uploads/${authResult.tenantId}/`)) {
+                return NextResponse.json(
+                    { success: false, error: "未授權刪除此檔案" },
+                    { status: 403 }
+                );
             }
         }
 

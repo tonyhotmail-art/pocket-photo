@@ -1,8 +1,31 @@
-import { clerkMiddleware } from '@clerk/nextjs/server';
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
+
+const isPublicRoute = createRouteMatcher([
+    '/',
+    '/sign-in(.*)',
+    '/sign-up(.*)',
+    '/:slug',
+    '/:slug/share/(.*)',
+    '/api/apply(.*)',
+    '/api/auth/(.*)',
+    '/api/works/paginate(.*)',
+    '/api/photos-picker(.*)',
+    '/manifest.webmanifest',
+    '/robots.txt',
+    '/sitemap.xml',
+    '/favicon.ico',
+    '/(.*).png',
+    '/(.*).jpg',
+    '/(.*).svg',
+]);
 
 export default clerkMiddleware(async (auth, req) => {
     const url = new URL(req.url);
+
+    if (!isPublicRoute(req)) {
+        await auth.protect();
+    }
 
     // 等待認證物件
     const { userId, sessionClaims } = await auth();

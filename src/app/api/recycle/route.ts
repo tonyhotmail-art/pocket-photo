@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAdminApp } from "@/lib/firebase-admin";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getFirestore, FieldValue, type Firestore } from "firebase-admin/firestore";
 import { verifyAdminAuth } from "@/lib/auth-middleware";
-import { env } from "@/lib/env";
 import { deleteFromR2 } from "@/lib/r2";
 
 // 回收區專用的 categoryName 常數
@@ -12,6 +11,46 @@ const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 function getDb() {
     return getFirestore(getAdminApp());
+}
+
+function getRequestedTenantId(request: Request) {
+    const { searchParams } = new URL(request.url);
+    return searchParams.get("tenantId") || searchParams.get("tenantSlug") || undefined;
+}
+
+function resolveReadableTenantId(authResult: any, requestedTenantId?: string) {
+    if (authResult.role === "store_admin") {
+        return authResult.tenantId;
+    }
+    return requestedTenantId || authResult.tenantId;
+}
+
+async function getAuthorizedItemDoc(
+    db: Firestore,
+    id: string,
+    authResult: any,
+    requestedTenantId?: string
+) {
+    const ref = db.collection("portfolio_items").doc(id);
+    const snap = await ref.get();
+
+    if (!snap.exists) {
+        return { ref, snap, data: null };
+    }
+
+    const data = snap.data()!;
+    if (authResult.role === "system_admin") {
+        if (requestedTenantId && data.tenantId !== requestedTenantId) {
+            throw new Error("Unauthorized tenant access");
+        }
+        return { ref, snap, data };
+    }
+
+    if (!authResult.tenantId || data.tenantId !== authResult.tenantId) {
+        throw new Error("Unauthorized tenant access");
+    }
+
+    return { ref, snap, data };
 }
 
 // POST /api/recycle — 將照片移入回收區（軟刪除）
@@ -27,21 +66,30 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, error: "未提供 ID" }, { status: 400 });
     }
 
-    const db = getDb();
-    const deletedAt = new Date().toISOString();
-    const batch = db.batch();
+    try {
+        const db = getDb();
+        const deletedAt = new Date().toISOString();
+        const batch = db.batch();
+        const requestedTenantId = getRequestedTenantId(request);
 
-    for (const id of ids) {
-        const ref = db.collection("portfolio_items").doc(id);
-        batch.update(ref, {
-            categoryName: RECYCLE_CATEGORY,
-            deletedAt,
-            updatedAt: FieldValue.serverTimestamp(),
-        });
+        for (const id of ids) {
+            const { ref, data } = await getAuthorizedItemDoc(db, id, authResult, requestedTenantId);
+            if (!data) {
+                return NextResponse.json({ success: false, error: `找不到項目：${id}` }, { status: 404 });
+            }
+            batch.update(ref, {
+                categoryName: RECYCLE_CATEGORY,
+                deletedAt,
+                updatedAt: FieldValue.serverTimestamp(),
+            });
+        }
+        await batch.commit();
+
+        return NextResponse.json({ success: true, count: ids.length });
+    } catch (error: any) {
+        const status = error.message?.includes("Unauthorized") ? 403 : 500;
+        return NextResponse.json({ success: false, error: error.message || "操作失敗" }, { status });
     }
-    await batch.commit();
-
-    return NextResponse.json({ success: true, count: ids.length });
 }
 
 // DELETE /api/recycle?ids=... — 永久刪除（R2 + Firestore）
@@ -59,13 +107,12 @@ export async function DELETE(request: Request) {
 
     const db = getDb();
     const results: { id: string; success: boolean; error?: string }[] = [];
+    const requestedTenantId = getRequestedTenantId(request);
 
     for (const id of ids) {
         try {
-            const ref = db.collection("portfolio_items").doc(id);
-            const snap = await ref.get();
-            if (!snap.exists) { results.push({ id, success: false, error: "找不到此項目" }); continue; }
-            const data = snap.data()!;
+            const { ref, data } = await getAuthorizedItemDoc(db, id, authResult, requestedTenantId);
+            if (!data) { results.push({ id, success: false, error: "找不到此項目" }); continue; }
             if (data.imageUrl) {
                 try { await deleteFromR2(data.imageUrl); } catch (r2Err) {
                     console.warn(`[recycle] R2 刪除失敗 (id=${id}):`, r2Err);
@@ -94,20 +141,29 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ success: false, error: "未提供 ID" }, { status: 400 });
     }
 
-    const db = getDb();
-    const batch = db.batch();
+    try {
+        const db = getDb();
+        const batch = db.batch();
+        const requestedTenantId = getRequestedTenantId(request);
 
-    for (const id of ids) {
-        const ref = db.collection("portfolio_items").doc(id);
-        batch.update(ref, {
-            categoryName: restoreCategory || "待分類照片",
-            deletedAt: FieldValue.delete(),
-            updatedAt: FieldValue.serverTimestamp(),
-        });
+        for (const id of ids) {
+            const { ref, data } = await getAuthorizedItemDoc(db, id, authResult, requestedTenantId);
+            if (!data) {
+                return NextResponse.json({ success: false, error: `找不到項目：${id}` }, { status: 404 });
+            }
+            batch.update(ref, {
+                categoryName: restoreCategory || "待分類照片",
+                deletedAt: FieldValue.delete(),
+                updatedAt: FieldValue.serverTimestamp(),
+            });
+        }
+        await batch.commit();
+
+        return NextResponse.json({ success: true, count: ids.length });
+    } catch (error: any) {
+        const status = error.message?.includes("Unauthorized") ? 403 : 500;
+        return NextResponse.json({ success: false, error: error.message || "操作失敗" }, { status });
     }
-    await batch.commit();
-
-    return NextResponse.json({ success: true, count: ids.length });
 }
 
 // GET /api/recycle — 讀取回收區，並自動清除超過 30 天的項目
@@ -119,7 +175,10 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     // 優先讀取 tenantId，兼容舊版 tenantSlug
-    const tenantSlug = searchParams.get("tenantId") || searchParams.get("tenantSlug") || env.NEXT_PUBLIC_TENANT_ID || "default";
+    const tenantSlug = resolveReadableTenantId(authResult, searchParams.get("tenantId") || searchParams.get("tenantSlug") || undefined);
+    if (!tenantSlug) {
+        return NextResponse.json({ success: false, error: "缺少租戶資訊" }, { status: 400 });
+    }
     const db = getDb();
 
     const snap = await db.collection("portfolio_items")

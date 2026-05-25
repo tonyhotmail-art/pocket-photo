@@ -90,9 +90,23 @@ export class PortfolioService {
         await portfolioRepo.updateItem(id, data);
     }
 
-    /**
-     * 刪除作品 (包含圖片)
-     */
+    /** 更新作品（含租戶權限檢查） */
+    async updateItemForRequest(
+        id: string,
+        data: Partial<PortfolioItem>,
+        requestingTenantId: string | undefined,
+        requestingUserRole: string | undefined
+    ) {
+        const item = await portfolioRepo.getItem(id);
+        if (!item) {
+            throw new Error("Item not found");
+        }
+
+        this.assertCanManageItem(item, requestingTenantId, requestingUserRole);
+        await portfolioRepo.updateItem(id, data);
+    }
+
+    /** 刪除作品 (包含圖片) */
     async deleteItem(id: string, imageUrl?: string) {
         // 如果沒有提供 imageUrl，從 DB 獲取
         if (!imageUrl) {
@@ -109,10 +123,22 @@ export class PortfolioService {
         await portfolioRepo.deleteItem(id);
     }
 
-    /**
-     * 取得分頁作品列表
-     * (封裝複雜的 Firestore Offset 邏輯)
-     */
+    /** 刪除作品（含租戶權限檢查） */
+    async deleteItemForRequest(
+        id: string,
+        requestingTenantId: string | undefined,
+        requestingUserRole: string | undefined
+    ) {
+        const item = await portfolioRepo.getItem(id);
+        if (!item) {
+            throw new Error("Item not found");
+        }
+
+        this.assertCanManageItem(item, requestingTenantId, requestingUserRole);
+        await this.deleteItem(id, item.imageUrl);
+    }
+
+    /** 取得分頁作品列表 */
     async getPaginatedItems(tenantId: string, page: number, pageSize: number, category: string) {
         // 這裡我們需要使用 repository 的底層方法或直接在這裡組裝查詢
         // 為了保持架構，我們應該在 Repository 擴充支援分頁的方法，
@@ -161,6 +187,18 @@ export class PortfolioService {
 
         // 好吧，我將在 Repository 新增 `getItemsByPage` 方法。
         return await portfolioRepo.getItemsByPage(tenantId, page, pageSize, category);
+    }
+
+    private assertCanManageItem(
+        item: PortfolioItem,
+        requestingTenantId: string | undefined,
+        requestingUserRole: string | undefined
+    ) {
+        if (requestingUserRole === "system_admin") return;
+
+        if (!requestingTenantId || item.tenantId !== requestingTenantId) {
+            throw new Error("Unauthorized tenant access");
+        }
     }
 }
 
