@@ -28,7 +28,11 @@ export async function DELETE(request: NextRequest) {
 
             // Execute in parallel (or sequential if too many, but parallel is usually fine for <50)
             const results = await Promise.allSettled(idList.map(async (itemId) => {
-                await portfolioService.deleteItem(itemId);
+                await portfolioService.deleteItemForRequest(
+                    itemId,
+                    authResult.tenantId,
+                    authResult.role
+                );
             }));
 
             // Check for failures
@@ -47,7 +51,11 @@ export async function DELETE(request: NextRequest) {
         }
 
         if (id) {
-            await portfolioService.deleteItem(id);
+            await portfolioService.deleteItemForRequest(
+                id,
+                authResult.tenantId,
+                authResult.role
+            );
             return NextResponse.json({ success: true });
         }
 
@@ -55,7 +63,8 @@ export async function DELETE(request: NextRequest) {
 
     } catch (error: any) {
         console.error("[Delete API] Error:", error);
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+        const status = error.message?.includes("Unauthorized") ? 403 : 500;
+        return NextResponse.json({ success: false, error: error.message }, { status });
     }
 }
 
@@ -82,7 +91,12 @@ export async function PATCH(request: NextRequest) {
 
         console.log(`[Update API] Updating work ${id} to category: ${categoryName}`);
 
-        await portfolioService.updateItem(id, { categoryName });
+        await portfolioService.updateItemForRequest(
+            id,
+            { categoryName },
+            authResult.tenantId,
+            authResult.role
+        );
 
         console.log(`[Update API] Work ${id} updated successfully.`);
 
@@ -93,10 +107,11 @@ export async function PATCH(request: NextRequest) {
 
     } catch (error: any) {
         console.error("[Update API] Error:", error);
+        const status = error.message?.includes("Unauthorized") ? 403 : 500;
         return NextResponse.json({
             success: false,
             error: "更新失敗",
             details: error.message
-        }, { status: 500 });
+        }, { status });
     }
 }
