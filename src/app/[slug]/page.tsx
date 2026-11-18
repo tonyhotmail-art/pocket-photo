@@ -334,7 +334,7 @@ function HomeContent() {
         {siteSettings.allowSharing && (
           <button
             onClick={() => {
-              const url = `${window.location.origin}${window.location.pathname}`;
+              const url = `${window.location.origin}${window.location.pathname}?mode=preview`;
               if (navigator.share) {
                 navigator.share({
                   title: `Pocket Photo 口袋相片`,
@@ -360,7 +360,7 @@ function HomeContent() {
         {siteSettings.allowSharing && (
           <button
             onClick={() => {
-              const url = `${window.location.origin}${window.location.pathname}`;
+              const url = `${window.location.origin}${window.location.pathname}?mode=preview`;
               if (navigator.share) {
                 navigator.share({
                   title: `Pocket Photo 口袋相片`,
@@ -527,7 +527,7 @@ function HomeContent() {
           >
             <Settings className="w-5 h-5" strokeWidth={1.5} />
           </button>
-        ) : !isAuthenticated ? (
+        ) : !isAuthenticated && !previewMode ? (
           <SignInButton mode="modal">
             <button
               className="w-11 h-11 shadow-xl rounded-full hover:scale-110 transition-transform flex items-center justify-center border bg-white text-[#888888] border-gray-200"
